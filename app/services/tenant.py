@@ -4,19 +4,31 @@ from app.config import settings
 from app.db.routing import get_tenant_connection
 from app.models.tenant import TenantUser
 
+import asyncpg
+from tortoise import Tortoise
+
+from app.config import settings
+from app.models.tenant import TenantUser  # For schema initialization
+
 
 async def create_tenant_database(organization_id: int):
-	"""Create and initialize a new tenant database"""
+	"""
+	Create a new tenant database for the organization
+	"""
+	# Check if database already exists
 	conn = await asyncpg.connect(settings.database_url)
 	database_name = f"tenant_{organization_id}"
-	await conn.execute(f'CREATE DATABASE "{database_name}"')
+
+	exists = await conn.fetchval(
+		"SELECT 1 FROM pg_database WHERE datname = $1", database_name
+	)
+
+	if not exists:
+		await conn.execute(f'CREATE DATABASE "{database_name}"')
+
 	await conn.close()
 
-	# Initialize schema
-	await init_tenant_schema(database_name)
-
 	return database_name
-
 
 async def init_tenant_schema(db_name: str):
 	"""Run migrations for tenant database"""
