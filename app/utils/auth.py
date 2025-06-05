@@ -4,9 +4,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, status, Depends
 
 from app.config import settings
+from app.models.core import CoreUser
+from app.services.auth import get_current_user
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
@@ -58,3 +60,14 @@ async def get_tenant_id(x_tenant: str = Header(...)):
             detail="X-TENANT header is required"
         )
     return x_tenant
+
+
+
+
+async def check_owner_status(user: CoreUser = Depends(get_current_user)):
+    if not user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners can access this resource"
+        )
+    return user
