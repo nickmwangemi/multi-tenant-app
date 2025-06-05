@@ -112,7 +112,7 @@ async def request_password_reset(email: str):
     pass
 
 
-@router.post("auth/login", response_model=Token)
+@router.post("/auth/login", response_model=Token)
 async def login_for_access_token(form_data: UserLogin):
     user = await authenticate_user(form_data.email, form_data.password)
     if not user:

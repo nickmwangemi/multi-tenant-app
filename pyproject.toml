@@ -20,6 +20,7 @@ dependencies = [
     "tortoise-orm>=0.23.0",
     "uvicorn>=0.33.0",
     "bcrypt<4.1.0",
+    "mypy>=1.14.1",
 ]
 
 [tool.aerich]
