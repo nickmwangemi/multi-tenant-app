@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str
     access_token_expire_minutes: int
+    verification_token_expire_hours: int
 
     class Config:
         env_file = ".env"
@@ -23,4 +24,6 @@ TORTOISE_ORM = {
             "default_connection": "default",
         },
     },
+    # "use_tz": True,
+    "timezone": "UTC",
 }
