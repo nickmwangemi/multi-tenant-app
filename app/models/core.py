@@ -52,6 +52,16 @@ class CoreUser(Model):
         return await cls.create(**kwargs)
 
 
+class Organization(Model):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(255)
+    owner = fields.ForeignKeyField("models.CoreUser", related_name="organizations")
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
 CoreUser_Pydantic = pydantic_model_creator(
     CoreUser, name="CoreUser", exclude=("password_hash",)
 )

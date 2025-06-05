@@ -9,11 +9,13 @@ from app.models.core import (
     AuthResponse,
     CoreUser,
     CoreUser_Pydantic,
+    Organization,
     Token,
     UserLogin,
     UserRegisterIn,
 )
 from app.services.auth import get_current_user
+from app.services.tenant import create_tenant_database
 from app.utils.auth import authenticate_user, create_access_token, utc_now
 
 router = APIRouter(prefix="/api", tags=["Core Operations"])
@@ -135,11 +137,21 @@ async def login_for_access_token(form_data: UserLogin):
 
 
 @router.post("/organizations")
-async def create_organization(user: CoreUser_Pydantic = Depends(get_current_user)):
-    # Implement organization creation logic
-    # if not current_user.is_owner:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only owners can create organizations"
-    #     )
-    pass
+async def create_organization(name: str, user: CoreUser = Depends(get_current_user)):
+    # check ownership
+    if not user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only owners can create organizations",
+        )
+
+    # create organization
+    organization = await Organization.create(name=name, owner=user)
+
+    tenant_db_name = await create_tenant_database(organization.id)
+
+    return {
+        "message": "Organization created successfully",
+        "organization_id": organization.id,
+        "tenant_db_name": tenant_db_name,
+    }
