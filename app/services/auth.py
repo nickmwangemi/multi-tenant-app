@@ -46,6 +46,8 @@ async def get_current_owner_user(current_user: CoreUser = Depends(get_current_us
     return current_user
 
 
+
+
 async def get_current_tenant_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,16 +55,14 @@ async def get_current_tenant_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
-        )
-        username: str = payload.get("sub")
-        if username is None:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id: str = payload.get("sub")
+        if user_id is None:
             raise credentials_exception
-    except JWTError as e:
-        raise credentials_exception from e
+    except JWTError:
+        raise credentials_exception
 
-    user = await TenantUser.get(username=username)
+    user = await TenantUser.get_or_none(id=user_id)
     if user is None:
         raise credentials_exception
     return user

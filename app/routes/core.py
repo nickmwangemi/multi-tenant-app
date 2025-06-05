@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 from tortoise.exceptions import IntegrityError
 
@@ -18,7 +18,7 @@ from app.services.auth import get_current_user
 from app.services.tenant import create_tenant_database
 from app.utils.auth import authenticate_user, create_access_token, utc_now
 
-router = APIRouter(prefix="/api", tags=["Core Operations"])
+router = APIRouter(prefix="/api", tags=["Core Operations (no X-TENANT header)"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from tortoise import Tortoise
 
 from app.database import init_db
-from app.routes import core, tenant
+from app.routes.core import router as core_router
+from app.routes.tenant import router as tenant_router
 
 
 @asynccontextmanager
@@ -16,11 +17,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.include_router(core_router)
+app.include_router(tenant_router)
 
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
 
 
-app.include_router(core.router)
-# app.include_router(tenant.router, prefix="/api", tags=["tenant"])
+
