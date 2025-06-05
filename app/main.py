@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from tortoise import Tortoise
 
 from app.database import init_db
+from app.middleware.tenant_context import TenantMiddleware
 from app.routes.core import router as core_router
 from app.routes.tenant import router as tenant_router
 
@@ -16,6 +17,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(TenantMiddleware)
 
 app.include_router(core_router)
 app.include_router(tenant_router)

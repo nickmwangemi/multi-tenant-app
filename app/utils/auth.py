@@ -1,14 +1,12 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist
-from fastapi import Header, HTTPException, status, Depends
 
 from app.config import settings
-from app.models.core import CoreUser
-from app.services.auth import get_current_user
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
@@ -19,10 +17,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta  # Naive datetime
+        expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode["exp"] = expire
@@ -52,22 +50,4 @@ def utc_now() -> datetime:
     return datetime.utcnow()
 
 
-async def get_tenant_id(x_tenant: str = Header(...)):
-    # Validate the tenant ID if necessary
-    if not x_tenant:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-TENANT header is required"
-        )
-    return x_tenant
 
-
-
-
-async def check_owner_status(user: CoreUser = Depends(get_current_user)):
-    if not user.is_owner:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only owners can access this resource"
-        )
-    return user
