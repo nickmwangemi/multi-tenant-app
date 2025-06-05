@@ -4,7 +4,6 @@ from tortoise import Tortoise, connections
 
 from app.config import settings
 
-# Context variable for current tenant
 current_tenant = ContextVar("current_tenant", default=None)
 
 
