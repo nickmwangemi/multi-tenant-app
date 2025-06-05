@@ -4,4 +4,25 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = []
+dependencies = [
+    "aerich>=0.8.2",
+    "asyncpg>=0.30.0",
+    "black>=24.8.0",
+    "fastapi>=0.115.12",
+    "isort>=5.13.2",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.10.6",
+    "pydantic-settings>=2.8.1",
+    "python-dotenv>=1.0.1",
+    "python-jose[cryptography]>=3.4.0",
+    "python-multipart>=0.0.20",
+    "tomlkit>=0.13.3",
+    "tortoise-orm>=0.23.0",
+    "uvicorn>=0.33.0",
+    "bcrypt<4.1.0",
+]
+
+[tool.aerich]
+tortoise_orm = "app.config.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."
