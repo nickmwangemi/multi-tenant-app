@@ -23,9 +23,7 @@ app.add_middleware(TenantMiddleware)
 app.include_router(core_router)
 app.include_router(tenant_router)
 
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
-
-
-

@@ -48,6 +48,3 @@ def get_password_hash(password):
 def utc_now() -> datetime:
     """Return current UTC time as naive datetime"""
     return datetime.utcnow()
-
-
-
