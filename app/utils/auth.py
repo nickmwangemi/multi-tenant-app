@@ -19,9 +19,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.utcnow() + expires_delta  # Naive datetime
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -46,4 +46,4 @@ def get_password_hash(password):
 
 def utc_now() -> datetime:
     """Return current UTC time as naive datetime"""
-    return datetime.now(timezone.utc)
+    return datetime.utcnow()

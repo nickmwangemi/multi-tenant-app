@@ -29,8 +29,6 @@ class UserRegisterIn(BaseModel):
 
 
 class CoreUser(Model):
-    __tablename__ = "core_users"
-
     id = fields.IntField(pk=True)
     email = fields.CharField(255, unique=True)
     password_hash = fields.CharField(128)
@@ -45,6 +43,13 @@ class CoreUser(Model):
 
     def __str__(self):
         return self.email
+
+    @classmethod
+    async def create_user(cls, **kwargs):
+        """Helper method to ensure proper datetime handling"""
+        if "verification_token_created_at" not in kwargs:
+            kwargs["verification_token_created_at"] = datetime.utcnow()
+        return await cls.create(**kwargs)
 
 
 CoreUser_Pydantic = pydantic_model_creator(

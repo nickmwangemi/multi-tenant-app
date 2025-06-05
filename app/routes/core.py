@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from passlib.context import CryptContext
 from tortoise.exceptions import IntegrityError
 
@@ -16,7 +16,7 @@ from app.models.core import (
 from app.services.auth import get_current_user
 from app.utils.auth import authenticate_user, create_access_token, utc_now
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["Core Operations"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -41,11 +41,14 @@ async def register_user(user_data: UserRegisterIn):
         import secrets
 
         verification_token = secrets.token_urlsafe(32)
+
+        # Use naive datetime explicitly
         new_user = await CoreUser.create(
             email=user_data.email,
             password_hash=pwd_context.hash(user_data.password),
             is_owner=user_data.is_owner,
             verification_token=verification_token,
+            verification_token_created_at=datetime.utcnow(),  # Naive datetime
         )
 
         access_token = create_access_token(
@@ -101,13 +104,13 @@ async def verify_email(token: str):
     return {"message": "Email verified successfully"}
 
 
-@router.post("/auth/reset-password")
+@router.post("/reset-password")
 async def request_password_reset(email: str):
     # Implementation here
     pass
 
 
-@router.post("/auth/login", response_model=Token)
+@router.post("auth/login", response_model=Token)
 async def login_for_access_token(form_data: UserLogin):
     user = await authenticate_user(form_data.email, form_data.password)
     if not user:

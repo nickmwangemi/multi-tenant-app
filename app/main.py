@@ -22,5 +22,5 @@ def read_root():
     return {"Hello": "World"}
 
 
-app.include_router(core.router, prefix="/api", tags=["core"])
-app.include_router(tenant.router, prefix="/api", tags=["tenant"])
+app.include_router(core.router)
+# app.include_router(tenant.router, prefix="/api", tags=["tenant"])
