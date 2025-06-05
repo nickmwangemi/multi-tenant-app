@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist
+from fastapi import Header, HTTPException, status
 
 from app.config import settings
 
@@ -47,3 +48,13 @@ def get_password_hash(password):
 def utc_now() -> datetime:
     """Return current UTC time as naive datetime"""
     return datetime.utcnow()
+
+
+async def get_tenant_id(x_tenant: str = Header(...)):
+    # Validate the tenant ID if necessary
+    if not x_tenant:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-TENANT header is required"
+        )
+    return x_tenant
