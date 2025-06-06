@@ -8,33 +8,32 @@ from app.middleware.tenant_context import TenantMiddleware
 app = FastAPI()
 app.add_middleware(TenantMiddleware)
 
-
 @app.get("/")
 async def root(request: Request):
-	return {
-		"is_core": request.state.is_core,
-		"tenant": request.state.tenant
-	}
+    return {
+        "is_core": request.state.is_core,
+        "tenant": request.state.tenant
+    }
 
-
-client = TestClient(app)
-
+@pytest.fixture
+def client():
+    return TestClient(app)
 
 @pytest.mark.parametrize("header,expected", [
-	(None, {"is_core": True, "tenant": None}),
-	("1", {"is_core": False, "tenant": "1"}),
-	("abc", {"is_core": True, "tenant": "abc"}),  # Should still set tenant even if invalid
+    (None, {"is_core": True, "tenant": None}),
+    ("1", {"is_core": False, "tenant": "1"}),
+    ("abc", {"is_core": True, "tenant": "abc"}),  # Should still set tenant even if invalid
 ])
-def test_tenant_middleware(header, expected):
-	headers = {}
-	if header is not None:
-		headers["X-TENANT"] = header
+def test_tenant_middleware(client, header, expected):
+    headers = {}
+    if header is not None:
+        headers["X-TENANT"] = header
 
-	response = client.get("/", headers=headers)
-	assert response.status_code == 200
-	assert response.json() == expected
+    response = client.get("/", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == expected
 
-
-def test_invalid_tenant_id():
-	with pytest.raises(ValueError):
-		client.get("/", headers={"X-TENANT": "invalid"})
+def test_invalid_tenant_id(client):
+    response = client.get("/", headers={"X-TENANT": "invalid"})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid tenant ID format. Must be an integer."}

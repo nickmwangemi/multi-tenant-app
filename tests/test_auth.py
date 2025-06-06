@@ -43,11 +43,5 @@ class TestAuthentication:
 
     def test_token_expiry(self):
         token = create_access_token({"sub": "123"}, expires_delta=timedelta(minutes=-1))
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        with pytest.raises(HTTPException) as exc_info:
-            if payload["exp"] < datetime.utcnow().timestamp():
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token expired"
-                )
-        assert exc_info.value.status_code == 401
+        with pytest.raises(jwt.ExpiredSignatureError):
+            jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
