@@ -11,19 +11,23 @@ from app.services.tenant import (
 from app.config import settings
 from tortoise import Tortoise
 
+
 @pytest.mark.asyncio
 async def test_create_tenant_database():
-    # Use admin connection
-    admin_conn = await asyncpg.connect(
-        host="localhost",
-        user="postgres",
-        password="postgres"
-    )
-    try:
-        db_name = await create_tenant_database(999)
-        assert db_name == "tenant_999"
-    finally:
-        await admin_conn.close()
+	# Use admin connection
+	admin_conn = await asyncpg.connect(
+		"postgres://postgres:postgres@localhost:5432/postgres"
+	)
+	try:
+		db_name = "test_temp_tenant"
+		await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
+		await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
+
+		# Now test the function
+		created_name = await create_tenant_database(999)
+		assert created_name == "tenant_999"
+	finally:
+		await admin_conn.close()
 
 
 @pytest.mark.asyncio
@@ -44,45 +48,40 @@ async def test_init_tenant_schema():
 	await conn.close()
 
 
+# In test_services.py
 @pytest.mark.asyncio
 async def test_sync_owner_to_tenant(core_user):
-	org_id = 999
-
-	# Create tenant database
-	db_name = await create_tenant_database(org_id)
-	await init_tenant_schema(db_name)
-
-	# Sync owner
-	await sync_owner_to_tenant(org_id, core_user.id)
-
-	# Verify in tenant database
-	from tortoise import Tortoise
-	await Tortoise.init({
-		"connections": {
-			"tenant": {
-				"engine": "tortoise.backends.asyncpg",
-				"credentials": {
-					"database": db_name,
-					"host": "localhost",
-					"password": "postgres",
-					"port": 5432,
-					"user": "postgres"
-				}
-			}
-		},
-		"apps": {
-			"tenant": {
-				"models": ["app.models.tenant"],
-				"default_connection": "tenant",
-			}
-		},
-	})
-
+	# Use admin connection for setup
+	admin_conn = await asyncpg.connect(
+		"postgres://postgres:postgres@localhost:5432/postgres"
+	)
 	try:
-		user = await TenantUser.get(email=core_user.email)
-		assert user is not None
+		org_id = 999
+		db_name = f"tenant_{org_id}"
+		await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
+
+		# Grant permissions on core tables
+		await admin_conn.execute(
+			f'GRANT SELECT ON TABLE coreuser TO test_user'
+		)
+
+		# Now run the test
+		await sync_owner_to_tenant(org_id, core_user.id)
+
+		# Verify in tenant database
+		tenant_conn = await asyncpg.connect(
+			f"postgres://test_user:test_password@localhost:5432/{db_name}"
+		)
+		try:
+			user = await tenant_conn.fetchrow(
+				'SELECT * FROM tenantuser WHERE email = $1', core_user.email
+			)
+			assert user is not None
+		finally:
+			await tenant_conn.close()
 	finally:
-		await Tortoise.close_connections()
+		await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
+		await admin_conn.close()
 
 
 @pytest.mark.asyncio
