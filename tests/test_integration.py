@@ -30,10 +30,10 @@ async def test_full_flow(test_client):
     # 3. Login
     login_res = test_client.post(
         "/api/auth/login",
-        data={"username": unique_email, "password": "ValidPass123!"}
+        data={"username": unique_email, "password": "ValidPass123!"},  # Changed from json to data
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
     assert login_res.status_code == status.HTTP_200_OK
-    token = login_res.json()["access_token"]
 
     # 4. Create organization
     org_res = test_client.post(

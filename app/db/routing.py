@@ -1,34 +1,59 @@
-from contextvars import ContextVar
-from tortoise import connections, Tortoise
+from tortoise import Tortoise, connections
+from tortoise.exceptions import ConfigurationError
 from app.config import settings
-
-current_tenant = ContextVar("current_tenant", default=None)
-
-
-class TenantRouter:
-    def db_for_read(self, model):
-        tenant_id = current_tenant.get()
-        return f"tenant_{tenant_id}" if tenant_id else "default"
-
-    def db_for_write(self, model):
-        tenant_id = current_tenant.get()
-        return f"tenant_{tenant_id}" if tenant_id else "default"
+from app.middleware.tenant_context import current_tenant
 
 
 async def get_tenant_connection(tenant_id: int):
-    db_name = f"tenant_{tenant_id}"
-    db_url = f"{settings.database_url.rsplit('/', 1)[0]}/{db_name}"
+	"""
+	Get or create a connection to a tenant-specific database.
 
-    if db_name not in connections:
-        await Tortoise.init(
-            config={
-                "connections": {db_name: db_url},
-                "apps": {
-                    "tenant": {
-                        "models": ["app.models.tenant"],
-                        "default_connection": db_name,
-                    }
-                },
-            }
-        )
-    return connections.get(db_name)
+	Args:
+		tenant_id: The ID of the tenant/organization
+
+	Returns:
+		A connection to the tenant's database
+
+	Raises:
+		ConfigurationError: If the tenant database cannot be initialized
+	"""
+	db_name = f"tenant_{tenant_id}"
+	db_url = f"{settings.tenant_database_base}/{db_name}"
+
+	# Check if connection already exists
+	if db_name in connections:
+		return connections.get(db_name)
+
+	# Initialize new connection
+	try:
+		await Tortoise.init(
+			config={
+				"connections": {db_name: db_url},
+				"apps": {
+					"tenant": {
+						"models": ["app.models.tenant", "aerich.models"],
+						"default_connection": db_name,
+					}
+				},
+			}
+		)
+		return connections.get(db_name)
+	except Exception as e:
+		raise ConfigurationError(
+			f"Failed to initialize tenant database {db_name}: {str(e)}"
+		) from e
+
+
+class TenantRouter:
+	"""
+	Database router that directs queries to the appropriate tenant database
+	based on the current tenant context.
+	"""
+
+	async def db_for_read(self, model):
+		tenant_id = current_tenant.get()
+		return await get_tenant_connection(tenant_id) if tenant_id else "default"
+
+	async def db_for_write(self, model):
+		tenant_id = current_tenant.get()
+		return await get_tenant_connection(tenant_id) if tenant_id else "default"

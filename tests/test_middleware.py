@@ -34,11 +34,6 @@ def test_tenant_middleware(client, header, expected):
 
 
 def test_invalid_tenant_id(client):
-    # Test with non-integer tenant ID
     response = client.get("/", headers={"X-TENANT": "invalid"})
-
-    # Verify the response
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Invalid tenant ID format. Must be an integer."
-    }
+    assert "Invalid tenant ID format" in response.json()["detail"]

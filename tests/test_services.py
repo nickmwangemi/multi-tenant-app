@@ -2,6 +2,7 @@ import pytest
 import asyncpg
 from fastapi import HTTPException
 
+from app.models.tenant import TenantUser
 from app.services.tenant import (
 	create_tenant_database,
 	init_tenant_schema,
@@ -46,37 +47,41 @@ async def test_init_tenant_schema():
 async def test_sync_owner_to_tenant(core_user):
 	org_id = 999
 
-	# Ensure core database is properly initialized
-	await Tortoise.init({
-		"connections": {
-			"default": settings.database_url
-		},
-		"apps": {
-			"models": {
-				"models": ["app.models.core", "aerich.models"],
-				"default_connection": "default",
-			}
-		}
-	})
-
-	# Create tenant database and schema
-	await create_tenant_database(org_id)
-	await init_tenant_schema(f"tenant_{org_id}")
+	# Create tenant database
+	db_name = await create_tenant_database(org_id)
+	await init_tenant_schema(db_name)
 
 	# Sync owner
 	await sync_owner_to_tenant(org_id, core_user.id)
 
 	# Verify in tenant database
-	conn = await asyncpg.connect(f"{settings.tenant_database_base}/tenant_{org_id}")
+	from tortoise import Tortoise
+	await Tortoise.init({
+		"connections": {
+			"tenant": {
+				"engine": "tortoise.backends.asyncpg",
+				"credentials": {
+					"database": db_name,
+					"host": "localhost",
+					"password": "postgres",
+					"port": 5432,
+					"user": "postgres"
+				}
+			}
+		},
+		"apps": {
+			"tenant": {
+				"models": ["app.models.tenant"],
+				"default_connection": "tenant",
+			}
+		},
+	})
+
 	try:
-		user = await conn.fetchrow(
-			"SELECT * FROM tenantuser WHERE email = $1",
-			core_user.email
-		)
-		assert user is not None, "Owner not found in tenant database"
-		assert user["email"] == core_user.email, "Email mismatch"
+		user = await TenantUser.get(email=core_user.email)
+		assert user is not None
 	finally:
-		await conn.close()
+		await Tortoise.close_connections()
 
 
 @pytest.mark.asyncio

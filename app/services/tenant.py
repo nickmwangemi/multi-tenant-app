@@ -2,7 +2,6 @@ import asyncpg
 from tortoise import Tortoise
 from tortoise.exceptions import ConfigurationError, IntegrityError, DoesNotExist
 from app.config import settings
-from app.db.routing import get_tenant_connection
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 from aerich import Command

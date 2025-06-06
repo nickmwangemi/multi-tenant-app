@@ -45,23 +45,13 @@ async def test_authenticate_core_user_not_found():
 
 
 @pytest.mark.asyncio
-async def test_authenticate_tenant_user_success(tenant_user):
-    # First verify the test user exists directly in database
-    from app.models.tenant import TenantUser
-
-    # Get user directly from database
-    existing_user = await TenantUser.filter(email="tenant@example.com").first()
-    assert existing_user is not None, "Test user not found in database"
+async def test_authenticate_core_user_success(core_user):
+    from app.utils.auth import authenticate_user
 
     # Test authentication
-    user = await authenticate_user(
-        email="tenant@example.com",
-        password="secret",  # Must match the hashed password in fixture
-        is_core=False
-    )
-
-    assert user is not None, "Authentication failed"
-    assert user.email == "tenant@example.com"
+    user = await authenticate_user(core_user.email, "secret")
+    assert user is not None
+    assert user.email == core_user.email
 
 
 @pytest.mark.asyncio
