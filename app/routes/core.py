@@ -16,7 +16,7 @@ from app.models.core import (
 )
 from app.services.auth import get_current_user
 from app.services.tenant import create_tenant_database, sync_owner_to_tenant
-from app.utils.auth import authenticate_user, create_access_token, utc_now
+from app.utils.auth import create_access_token, authenticate_user
 
 router = APIRouter(prefix="/api", tags=["Core Operations (no X-TENANT header)"])
 
@@ -135,7 +135,6 @@ async def login_for_access_token(form_data: UserLogin):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-
 @router.post("/organizations")
 async def create_organization(name: str, user: CoreUser = Depends(get_current_user)):
     if not user.is_owner:
@@ -149,8 +148,8 @@ async def create_organization(name: str, user: CoreUser = Depends(get_current_us
     await sync_owner_to_tenant(organization.id, user.id)
 
     return {
-        "message": "Organization created successfully",
         "organization_id": organization.id,
         "tenant_db_name": tenant_db_name,
+        "message": "Organization created successfully",
     }
 

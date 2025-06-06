@@ -1,16 +1,13 @@
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from tortoise.exceptions import DoesNotExist
 
 from app.config import settings
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-# Dependency for protected endpoints
-
 
 async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -23,20 +20,19 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
         user_id: str = payload.get("sub")
-        if user_id is None:
+        if not user_id:
             raise credentials_exception
     except JWTError as e:
         raise credentials_exception from e
 
-    if getattr(request.state, "is_core", False):
-        user = await CoreUser.get_or_none(id=user_id)
-    else:
-        user = await TenantUser.get_or_none(id=user_id)
-
-    if user is None:
-        raise credentials_exception
-    return user
-
+    try:
+        return (
+            await CoreUser.get(id=user_id)
+            if request.state.is_core
+            else await TenantUser.get(id=user_id)
+        )
+    except DoesNotExist as exc:
+        raise credentials_exception from exc
 
 async def get_current_owner_user(current_user: CoreUser = Depends(get_current_user)):
     if not current_user.is_owner:
@@ -47,25 +43,31 @@ async def get_current_owner_user(current_user: CoreUser = Depends(get_current_us
     return current_user
 
 
-async def get_current_tenant_user(
-    request: Request, token: str = Depends(oauth2_scheme)
-):
+
+
+async def get_current_tenant_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm]
         )
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
     except JWTError as e:
         raise credentials_exception from e
 
-    user = await TenantUser.get_or_none(id=user_id)
-    if user is None:
-        raise credentials_exception
-    return user
+    try:
+        user = await TenantUser.get(email=email)
+        if user is None:
+            raise credentials_exception
+        return user
+    except DoesNotExist as exc:
+        raise credentials_exception from exc

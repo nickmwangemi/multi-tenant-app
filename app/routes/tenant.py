@@ -11,7 +11,7 @@ from app.models.tenant import (
     TenantUserIn_Pydantic,
 )
 from app.services.auth import get_current_tenant_user
-from app.utils.auth import create_access_token, get_password_hash, pwd_context
+from app.utils.auth import create_access_token, get_password_hash, pwd_context, authenticate_user
 
 router = APIRouter(prefix="/api", tags=["Tenant Operations (with X-TENANT header)"])
 
@@ -46,8 +46,8 @@ async def register_tenant_user(user_data: TenantUserIn, x_tenant: str = Header(.
 async def login_tenant_user(
     email: str = Form(...), password: str = Form(...), x_tenant: str = Header(...)
 ):
-    user = await TenantUser.get_or_none(email=email)
-    if not user or not user.verify_password(password):
+    user = await authenticate_user(email, password, is_core=False)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

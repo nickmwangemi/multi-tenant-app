@@ -5,7 +5,7 @@ from tortoise import fields
 from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.models import Model
 
-from app.utils.auth import pwd_context, utc_now
+from app.utils.auth import pwd_context
 
 
 class Token(BaseModel):
