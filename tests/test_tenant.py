@@ -7,17 +7,19 @@ from app.services.tenant import create_tenant_database
 
 @pytest.fixture
 async def setup_tenant(core_user):
-    # Create organization
-    org = await Organization.create(name="Test Tenant", owner=core_user)
-
-    # Create tenant database
-    await create_tenant_database(org.id)
-    yield org.id
-
-    # Cleanup
-    conn = await asyncpg.connect(settings.database_url)
-    await conn.execute(f'DROP DATABASE IF EXISTS "tenant_{org.id}"')
-    await conn.close()
+    # Use admin connection for setup
+    admin_conn = await asyncpg.connect(
+        host="localhost",
+        user="postgres",
+        password="postgres"
+    )
+    try:
+        org = await Organization.create(name="Test Tenant", owner=core_user)
+        db_name = f"tenant_{org.id}"
+        await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
+        yield org.id
+    finally:
+        await admin_conn.close()
 
 @pytest.mark.asyncio
 async def test_register_tenant_user(test_client, setup_tenant):

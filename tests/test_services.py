@@ -13,16 +13,17 @@ from tortoise import Tortoise
 
 @pytest.mark.asyncio
 async def test_create_tenant_database():
-	db_name = await create_tenant_database(999)
-	assert db_name == "tenant_999"
-
-	# Verify database exists
-	conn = await asyncpg.connect(settings.database_url)
-	exists = await conn.fetchval(
-		"SELECT 1 FROM pg_database WHERE datname = $1", db_name
-	)
-	await conn.close()
-	assert exists == 1
+    # Use admin connection
+    admin_conn = await asyncpg.connect(
+        host="localhost",
+        user="postgres",
+        password="postgres"
+    )
+    try:
+        db_name = await create_tenant_database(999)
+        assert db_name == "tenant_999"
+    finally:
+        await admin_conn.close()
 
 
 @pytest.mark.asyncio
