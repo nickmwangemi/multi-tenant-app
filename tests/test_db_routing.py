@@ -4,6 +4,8 @@ import pytest
 from tortoise import Tortoise
 
 from app.config import settings
+from app.db.routing import TenantRouter
+from app.middleware.tenant_context import current_tenant
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 
@@ -55,3 +57,18 @@ async def test_tenant_db_routing(test_client, tenant_db):
         assert user is not None
     finally:
         await Tortoise.close_connections()
+
+
+@pytest.mark.asyncio
+async def test_tenant_router():
+    router = TenantRouter()
+
+    # Test with tenant context
+    current_tenant.set(1)
+    assert await router.db_for_read(None) is not None
+    assert await router.db_for_write(None) is not None
+
+    # Test without tenant context
+    current_tenant.set(None)
+    assert await router.db_for_read(None) == "default"
+    assert await router.db_for_write(None) == "default"

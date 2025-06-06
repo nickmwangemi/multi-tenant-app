@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from fastapi import status
 
@@ -5,12 +7,10 @@ from fastapi import status
 @pytest.mark.asyncio
 async def test_full_flow(test_client):
     # Generate unique test data
-    import uuid
     unique_email = f"test_{uuid.uuid4().hex[:8]}@integration.com"
-    tenant_email = f"tenant_{uuid.uuid4().hex[:8]}@integration.com"
 
     # 1. Register core user
-    register_res = test_client.post(
+    register_res = await test_client.post(
         "/api/auth/register",
         json={
             "email": unique_email,
@@ -20,6 +20,9 @@ async def test_full_flow(test_client):
     )
     assert register_res.status_code == status.HTTP_201_CREATED
     register_data = register_res.json()
+
+    # Get token from response
+    token = register_data["access_token"]
 
     # 2. Verify email
     verify_res = test_client.get(

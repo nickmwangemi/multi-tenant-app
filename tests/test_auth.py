@@ -6,7 +6,7 @@ from jose import jwt
 
 from app.config import settings
 from app.models.tenant import TenantUser
-from app.utils.auth import authenticate_user, create_access_token
+from app.utils.auth import authenticate_user, create_access_token, get_password_hash
 
 from tortoise import Tortoise
 
@@ -83,3 +83,20 @@ def test_token_expiry():
     token = create_access_token({"sub": "123"}, expires_delta=timedelta(minutes=-1))
     with pytest.raises(jwt.ExpiredSignatureError):
         jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+
+@pytest.fixture
+async def tenant_user(setup_tenant):
+    tenant_id = await setup_tenant
+    user = await TenantUser.create(
+        email="tenant@example.com",
+        password_hash=get_password_hash("secret"),
+        is_active=True
+    )
+    yield user
+    await user.delete()
+
+@pytest.mark.asyncio
+async def test_authenticate_tenant_user_success(tenant_user):
+    user = await authenticate_user(tenant_user.email, "secret", is_core=False)
+    assert user is not None
+    assert user.email == tenant_user.email

@@ -1,4 +1,3 @@
-# tests/conftest.py
 import pytest
 import asyncpg
 import asyncio
@@ -17,27 +16,30 @@ def event_loop():
 	loop.close()
 
 
+
 @pytest.fixture(scope="session", autouse=True)
 async def initialize_db():
-	# Connect using test user credentials
-	conn = await asyncpg.connect(
-		"postgres://test_user:test_password@localhost:5432/test_core"
+	# Use admin connection
+	admin_conn = await asyncpg.connect(
+		"postgres://postgres:postgres@localhost:5432/postgres"
 	)
 
 	try:
-		# Create test tenant databases
+		# Create test core database if not exists
+		await admin_conn.execute("""
+            SELECT 'CREATE DATABASE test_core OWNER test_user'
+            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'test_core')
+        """)
+
+		# Create test tenant databases if not exist
 		for i in range(1, 3):
 			db_name = f"test_tenant_{i}"
-			with contextlib.suppress(asyncpg.DuplicateDatabaseError):
-				await conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
-				# Initialize schema in tenant database
-				tenant_conn = await asyncpg.connect(
-					f"postgres://test_user:test_password@localhost:5432/{db_name}"
-				)
-				await tenant_conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-				await tenant_conn.close()
+			await admin_conn.execute(f"""
+                SELECT 'CREATE DATABASE "{db_name}" OWNER test_user'
+                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{db_name}')
+            """)
 	finally:
-		await conn.close()
+		await admin_conn.close()
 
 	# Initialize core database
 	await Tortoise.init(

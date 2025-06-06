@@ -14,18 +14,17 @@ from tortoise import Tortoise
 
 @pytest.mark.asyncio
 async def test_create_tenant_database():
-	# Use admin connection
+	# Use admin connection for setup
 	admin_conn = await asyncpg.connect(
 		"postgres://postgres:postgres@localhost:5432/postgres"
 	)
 	try:
-		db_name = "test_temp_tenant"
-		await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
-		await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
+		# Ensure test user has permissions
+		await admin_conn.execute('GRANT CREATE ON DATABASE postgres TO test_user')
 
-		# Now test the function
-		created_name = await create_tenant_database(999)
-		assert created_name == "tenant_999"
+		# Test the function
+		db_name = await create_tenant_database(999)
+		assert db_name == "tenant_999"
 	finally:
 		await admin_conn.close()
 
@@ -61,9 +60,7 @@ async def test_sync_owner_to_tenant(core_user):
 		await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
 
 		# Grant permissions on core tables
-		await admin_conn.execute(
-			f'GRANT SELECT ON TABLE coreuser TO test_user'
-		)
+		await admin_conn.execute('GRANT SELECT ON TABLE coreuser TO test_user')
 
 		# Now run the test
 		await sync_owner_to_tenant(org_id, core_user.id)
