@@ -1,67 +1,105 @@
-import uuid
-
 import pytest
-from httpx import AsyncClient
-from tortoise import Tortoise
+import asyncpg
+import contextlib
+from tortoise import Tortoise, run_async
+from tortoise.contrib.test import initializer
 
 from app.config import settings
-from app.main import app
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 
-# Override database settings for tests
-settings.database_url = "postgres://test:test@localhost:5432/test_core"
-settings.tenant_database_base = "postgres://test:test@localhost:5432"
+# Override settings for tests
+settings.database_url = "postgres://postgres:postgres@localhost:5432/test_core"
+settings.tenant_database_base = "postgres://postgres:postgres@localhost:5432"
 
 
-@pytest.fixture(scope="session")
-async def initialize_db():
-    await Tortoise.init(
-        db_url="postgres://test:test@localhost:5432/test",
-        modules={"models": ["app.models.core"]},
-        _create_db=True,
-    )
-    await Tortoise.generate_schemas()
-    yield
-    await Tortoise.close_connections()
-    await Tortoise._drop_databases()
+@pytest.fixture(scope="session", autouse=True)
+def initialize_db():
+	# Initialize core database
+	initializer(
+		["app.models.core", "app.models.tenant", "aerich.models"],
+		db_url=settings.database_url,
+		app_label="models",
+	)
+
+	# Create test tenant databases
+	async def create_test_tenant():
+		conn = await asyncpg.connect(settings.database_url)
+		for i in range(1, 3):  # Create 2 test tenant databases
+			db_name = f"test_tenant_{i}"
+			with contextlib.suppress(asyncpg.DuplicateDatabaseError):
+				await conn.execute(f'CREATE DATABASE "{db_name}"')
+		await conn.close()
+
+	run_async(create_test_tenant())
+
+	yield
+
+	# Cleanup
+	run_async(Tortoise.close_connections())
+
+	async def cleanup_tenant_dbs():
+		conn = await asyncpg.connect(settings.database_url)
+		for i in range(1, 3):
+			db_name = f"test_tenant_{i}"
+			with contextlib.suppress(asyncpg.PostgresError):
+				await conn.execute(f'DROP DATABASE "{db_name}"')
+		await conn.close()
+
+	run_async(cleanup_tenant_dbs())
 
 
 @pytest.fixture
-async def client():
-    async with AsyncClient(base_url="http://localhost:8000") as ac:
-        yield ac
+async def test_client():
+	from fastapi.testclient import TestClient
+	from app.main import app
+
+	# Initialize Tortoise for the app
+	await Tortoise.init(
+		db_url=settings.database_url,
+		modules={"models": ["app.models.core", "app.models.tenant"]},
+	)
+	await Tortoise.generate_schemas()
+
+	yield TestClient(app)
+
+	await Tortoise.close_connections()
 
 
 @pytest.fixture
-async def owner_token(client):
-    email = f"owner-{uuid.uuid4()}@test.com"
-
-    response = await client.post(
-        "/api/auth/register",
-        json={"email": email, "password": "securepass123", "is_owner": True},
-    )
-    return response.json()["access_token"]
+async def core_user():
+	user = await CoreUser.create(
+		email="test@example.com",
+		password_hash="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPVgaYl5O",  # "secret"
+		is_verified=True
+	)
+	yield user
+	await user.delete()
 
 
 @pytest.fixture
-async def tenant_db(client, owner_token):
-    response = await client.post(
-        "/api/organizations",
-        json={"name": "TestOrg"},
-        headers={"Authorization": f"Bearer {owner_token}"},
-    )
-    assert (
-        response.status_code == 201
-    ), f"Expected 201, got {response.status_code}: {response.text}"
-    data = response.json()
-    assert "organization_id" in data, f"Missing 'organization_id' in response: {data}"
-    return data["organization_id"]
+async def tenant_user():
+	# Initialize tenant database connection
+	await Tortoise.init(
+		{
+			"connections": {
+				"test_tenant_1": f"{settings.tenant_database_base}/test_tenant_1"
+			},
+			"apps": {
+				"tenant": {
+					"models": ["app.models.tenant"],
+					"default_connection": "test_tenant_1",
+				}
+			},
+		}
+	)
+	await Tortoise.generate_schemas()
 
-
-@pytest.fixture(autouse=True)
-async def clean_db():
-    yield
-    # Clean database after each test
-    for model in [CoreUser, TenantUser]:
-        await model.all().delete()
+	user = await TenantUser.create(
+		email="tenant@example.com",
+		password_hash="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPVgaYl5O",
+		is_active=True
+	)
+	yield user
+	await user.delete()
+	await Tortoise.close_connections()

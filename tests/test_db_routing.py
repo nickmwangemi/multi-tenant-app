@@ -1,33 +1,29 @@
 import pytest
 from tortoise import connections
-
+from app.models.core import CoreUser
+from app.models.tenant import TenantUser
 
 @pytest.mark.asyncio
-async def test_core_db_routing(client):
+async def test_core_db_routing(test_client, core_user):
     # Should use core database
-    response = await client.post(
+    response = await test_client.post(
         "/api/auth/register",
         json={
             "email": "routing@core.com",
             "password": "RoutingPass123!",
             "is_owner": True,
-            "name": "Test User",
         },
     )
     assert response.status_code == 201
 
     # Verify in core database
-    conn = connections.get("default")
-    user = await conn.execute_query_dict(
-        "SELECT * FROM coreuser WHERE email = 'routing@core.com'"
-    )
-    assert len(user) > 0
-
+    user = await CoreUser.get(email="routing@core.com")
+    assert user is not None
 
 @pytest.mark.asyncio
-async def test_tenant_db_routing(client, tenant_db):
+async def test_tenant_db_routing(test_client, tenant_db):
     # Should use tenant database
-    response = await client.post(
+    response = await test_client.post(
         "/api/auth/register",
         json={"email": "routing@tenant.com", "password": "RoutingPass123!"},
         headers={"X-TENANT": str(tenant_db)},
@@ -35,15 +31,8 @@ async def test_tenant_db_routing(client, tenant_db):
     assert response.status_code == 201
 
     # Verify in tenant database
-    tenant_conn = await connections.get(f"tenant_{tenant_db}")
-    user = await tenant_conn.execute_query_dict(
-        "SELECT * FROM tenantuser WHERE email = 'routing@tenant.com'"
-    )
-    assert len(user) > 0
+    user = await TenantUser.get(email="routing@tenant.com")
+    assert user is not None
 
     # Verify NOT in core database
-    core_conn = connections.get("default")
-    core_user = await core_conn.execute_query_dict(
-        "SELECT * FROM coreuser WHERE email = 'routing@tenant.com'"
-    )
-    assert len(core_user) == 0
+    assert not await CoreUser.exists(email="routing@tenant.com")
