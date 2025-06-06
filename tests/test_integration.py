@@ -1,67 +1,94 @@
 import pytest
-from fastapi.testclient import TestClient
-from tortoise import Tortoise
-
-from app.main import app
-from app.config import settings
-from app.models.core import CoreUser
-
-client = TestClient(app)
+from fastapi import status
 
 
 @pytest.mark.asyncio
-class TestIntegration:
-	async def test_full_flow(self):
-		# Register core user
-		register_res = client.post(
-			"/api/auth/register",
-			json={
-				"email": "integration@test.com",
-				"password": "IntegrationPass123!",
-				"is_owner": True
-			}
-		)
-		assert register_res.status_code == 201
-		register_data = register_res.json()
+async def test_full_flow(test_client):
+    # Generate unique test data
+    import uuid
+    unique_email = f"test_{uuid.uuid4().hex[:8]}@integration.com"
+    tenant_email = f"tenant_{uuid.uuid4().hex[:8]}@integration.com"
 
-		# Verify email
-		verify_res = client.get(
-			f"/api/auth/verify?token={register_data['verification_token']}"
-		)
-		assert verify_res.status_code == 200
+    # 1. Register core user
+    register_res = test_client.post(
+        "/api/auth/register",
+        json={
+            "email": unique_email,
+            "password": "ValidPass123!",
+            "is_owner": True
+        }
+    )
+    assert register_res.status_code == status.HTTP_201_CREATED
+    register_data = register_res.json()
 
-		# Login
-		login_res = client.post(
-			"/api/auth/login",
-			data={"email": "integration@test.com", "password": "IntegrationPass123!"}
-		)
-		assert login_res.status_code == 200
-		token = login_res.json()["access_token"]
+    # 2. Verify email
+    verify_res = test_client.get(
+        f"/api/auth/verify?token={register_data['verification_token']}"
+    )
+    assert verify_res.status_code == status.HTTP_200_OK
 
-		# Create organization
-		org_res = client.post(
-			"/api/organizations",
-			headers={"Authorization": f"Bearer {token}"},
-			json={"name": "Integration Test Org"}
-		)
-		assert org_res.status_code == 200
-		org_data = org_res.json()
+    # 3. Login
+    login_res = test_client.post(
+        "/api/auth/login",
+        data={"username": unique_email, "password": "ValidPass123!"}
+    )
+    assert login_res.status_code == status.HTTP_200_OK
+    token = login_res.json()["access_token"]
 
-		# Register tenant user
-		tenant_res = client.post(
-			"/api/auth/register",
-			headers={"X-TENANT": str(org_data["organization_id"])},
-			json={
-				"email": "tenant@integration.com",
-				"password": "TenantPass123!"
-			}
-		)
-		assert tenant_res.status_code == 201
+    # 4. Create organization
+    org_res = test_client.post(
+        "/api/organizations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Integration Test Org"}
+    )
 
-		# Login tenant user
-		tenant_login = client.post(
-			"/api/auth/login",
-			headers={"X-TENANT": str(org_data["organization_id"])},
-			data={"email": "tenant@integration.com", "password": "TenantPass123!"}
-		)
-		assert tenant_login.status_code == 200
+    # Debug output
+    if org_res.status_code != status.HTTP_200_OK:
+        print(f"Organization creation failed: {org_res.json()}")
+
+    assert org_res.status_code == status.HTTP_200_OK
+    org_data = org_res.json()
+
+    # 5. Register tenant user (using sync client)
+    tenant_res = test_client.post(
+        "/api/auth/register",
+        headers={"X-TENANT": str(org_data["organization_id"])},
+        json={
+            "email": tenant_email,
+            "password": "TenantPass123!"
+        }
+    )
+
+    if tenant_res.status_code != status.HTTP_201_CREATED:
+        print(f"Tenant registration failed: {tenant_res.json()}")
+    assert tenant_res.status_code == status.HTTP_201_CREATED
+
+    # 6. Verify tenant user exists (using proper async connection)
+    from tortoise import Tortoise
+    await Tortoise.init({
+        "connections": {
+            "tenant": {
+                "engine": "tortoise.backends.asyncpg",
+                "credentials": {
+                    "database": f"tenant_{org_data['organization_id']}",
+                    "host": "localhost",
+                    "password": "postgres",
+                    "port": 5432,
+                    "user": "postgres"
+                }
+            }
+        },
+        "apps": {
+            "tenant": {
+                "models": ["app.models.tenant"],
+                "default_connection": "tenant",
+            }
+        },
+    })
+
+    try:
+        from app.models.tenant import TenantUser
+        user = await TenantUser.get(email=tenant_email)
+        assert user is not None
+    finally:
+        await Tortoise.close_connections()

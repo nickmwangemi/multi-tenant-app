@@ -1,55 +1,42 @@
+# tests/test_core.py
 import pytest
-from fastapi.testclient import TestClient
-
-from app.main import app
-from app.models.core import CoreUser
-
-
-@pytest.fixture
-async def client():
-	from tortoise import Tortoise
-	from app.config import settings
-
-	await Tortoise.init(
-		db_url=settings.database_url,
-		modules={"models": ["app.models.core"]}
-	)
-	await Tortoise.generate_schemas()
-
-	with TestClient(app) as client:
-		yield client
-
-	await Tortoise.close_connections()
 
 
 @pytest.mark.asyncio
-async def test_register_user(client):
-	response = client.post(
-		"/api/auth/register",
-		json={
-			"email": "test@example.com",
-			"password": "SecurePass123!",
-			"is_owner": True,
-		},
-	)
-	assert response.status_code == 201
-	data = response.json()
-	assert "user" in data
-	assert "access_token" in data
+async def test_register_user(test_client):
+    # Use a truly unique email
+    import uuid
+    unique_email = f"test_{uuid.uuid4().hex}@example.com"
 
+    response = test_client.post(
+        "/api/auth/register",
+        json={
+            "email": unique_email,
+            "password": "ValidPass123!",  # Ensure it meets all requirements
+            "is_owner": True,
+        },
+    )
+
+    # Debug output
+    if response.status_code != 201:
+        print(f"Registration failed: {response.json()}")
+
+    assert response.status_code == 201, \
+        f"Expected 201 Created, got {response.status_code}. Response: {response.json()}"
+
+    data = response.json()
+    assert "user" in data, "Response missing user data"
+    assert "access_token" in data, "Response missing access token"
 
 @pytest.mark.asyncio
-async def test_login_user(client):
-	# Create test user
-	await CoreUser.create(
-		email="login@test.com",
-		password_hash="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPVgaYl5O",  # "secret"
-		is_verified=True,
-	)
+async def test_login_user(test_client, core_user):
+    # Verify email first
+    core_user.is_verified = True
+    await core_user.save()
 
-	response = client.post(
-		"/api/auth/login",
-		data={"email": "login@test.com", "password": "secret"}
-	)
-	assert response.status_code == 200
-	assert "access_token" in response.json()
+    response = test_client.post(
+        "/api/auth/login",
+        data={"email": "test@example.com", "password": "secret"}
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()

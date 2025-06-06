@@ -7,6 +7,8 @@ from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist
 
 from app.config import settings
+from app.models.core import CoreUser
+from app.models.tenant import TenantUser
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
@@ -42,17 +44,18 @@ async def authenticate_user(email: str, password: str, is_core: bool = True):
     try:
         if is_core:
             from app.models.core import CoreUser
-
             user = await CoreUser.get(email=email)
+            # For core users, check verification status
+            if not user.is_verified:
+                return None
         else:
             from app.models.tenant import TenantUser
-
             user = await TenantUser.get(email=email)
+            # For tenant users, check active status
+            if not user.is_active:
+                return None
 
-        if not user or not user.verify_password(password):
-            return None
-
-        return user
+        return None if not user or not user.verify_password(password) else user
     except DoesNotExist:
         return None
 

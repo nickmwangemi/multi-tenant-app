@@ -22,7 +22,6 @@ def client():
 @pytest.mark.parametrize("header,expected", [
     (None, {"is_core": True, "tenant": None}),
     ("1", {"is_core": False, "tenant": "1"}),
-    ("abc", {"is_core": True, "tenant": "abc"}),  # Should still set tenant even if invalid
 ])
 def test_tenant_middleware(client, header, expected):
     headers = {}
@@ -33,7 +32,13 @@ def test_tenant_middleware(client, header, expected):
     assert response.status_code == 200
     assert response.json() == expected
 
+
 def test_invalid_tenant_id(client):
+    # Test with non-integer tenant ID
     response = client.get("/", headers={"X-TENANT": "invalid"})
+
+    # Verify the response
     assert response.status_code == 400
-    assert response.json() == {"detail": "Invalid tenant ID format. Must be an integer."}
+    assert response.json() == {
+        "detail": "Invalid tenant ID format. Must be an integer."
+    }

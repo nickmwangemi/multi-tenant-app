@@ -2,6 +2,7 @@ import asyncpg
 from tortoise import Tortoise
 from tortoise.exceptions import ConfigurationError, IntegrityError, DoesNotExist
 from app.config import settings
+from app.db.routing import get_tenant_connection
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 from aerich import Command
@@ -55,30 +56,19 @@ async def init_tenant_schema(db_name: str):
 
 
 async def sync_owner_to_tenant(organization_id: int, owner_id: int):
-    try:
-        owner = await CoreUser.get(id=owner_id)
-        db_name = f"tenant_{organization_id}"
+    # Get core connection
+    core_db = Tortoise.get_connection("default")
 
-        # Initialize Tortoise for tenant DB
-        await Tortoise.init(
-            {
-                "connections": {
-                    db_name: f"{settings.database_url.rsplit('/', 1)[0]}/{db_name}"
-                },
-                "apps": {
-                    "tenant": {
-                        "models": ["app.models.tenant"],
-                        "default_connection": db_name,
-                    }
-                },
-            }
-        )
+    # Get owner from core database
+    owner = await CoreUser.get(id=owner_id).using_db(core_db)
 
-        # Create owner in tenant DB
-        await TenantUser.create(email=owner.email, password_hash=owner.password_hash)
-    except (DoesNotExist, IntegrityError) as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to sync owner to tenant: {str(e)}"
-        ) from e
-    finally:
-        await Tortoise.close_connections()
+    # Get tenant connection
+    tenant_db_name = f"tenant_{organization_id}"
+    tenant_db = await get_tenant_connection(tenant_db_name)
+
+    # Create in tenant database
+    await TenantUser.create(
+        email=owner.email,
+        password_hash=owner.password_hash,
+        is_active=True
+    ).using_db(tenant_db)

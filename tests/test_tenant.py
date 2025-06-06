@@ -1,63 +1,51 @@
 import pytest
 import asyncpg
-from fastapi.testclient import TestClient
 
-from app.main import app
 from app.config import settings
-from app.models.core import CoreUser, Organization
+from app.models.core import Organization
 from app.services.tenant import create_tenant_database
 
-
 @pytest.fixture
-async def setup_tenant():
-	# Create core objects
-	owner = await CoreUser.create(
-		email="tenant_owner@test.com",
-		password_hash="hashed_password",
-		is_owner=True,
-		is_verified=True,
-	)
-	org = await Organization.create(name="Test Tenant", owner=owner)
+async def setup_tenant(core_user):
+    # Create organization
+    org = await Organization.create(name="Test Tenant", owner=core_user)
 
-	# Create tenant database
-	await create_tenant_database(org.id)
-	yield org.id
-	# Cleanup
-	conn = await asyncpg.connect(settings.database_url)
-	await conn.execute(f'DROP DATABASE IF EXISTS "tenant_{org.id}"')
-	await conn.close()
+    # Create tenant database
+    await create_tenant_database(org.id)
+    yield org.id
 
+    # Cleanup
+    conn = await asyncpg.connect(settings.database_url)
+    await conn.execute(f'DROP DATABASE IF EXISTS "tenant_{org.id}"')
+    await conn.close()
 
 @pytest.mark.asyncio
-async def test_register_tenant_user(setup_tenant):
-	client = TestClient(app)
-	tenant_id = await setup_tenant
-	response = client.post(
-		"/api/auth/register",
-		headers={"X-TENANT": str(tenant_id)},
-		json={"email": "tenant_user@test.com", "password": "TenantPass123!"},
-	)
-	assert response.status_code == 201
-	data = response.json()
-	assert data["email"] == "tenant_user@test.com"
-
+async def test_register_tenant_user(test_client, setup_tenant):
+    tenant_id = await setup_tenant
+    response = test_client.post(
+        "/api/auth/register",
+        headers={"X-TENANT": str(tenant_id)},
+        json={"email": "tenant_user@test.com", "password": "TenantPass123!"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "tenant_user@test.com"
 
 @pytest.mark.asyncio
-async def test_tenant_login(setup_tenant):
-	client = TestClient(app)
-	tenant_id = await setup_tenant
+async def test_tenant_login(test_client, setup_tenant):
+    tenant_id = await setup_tenant
 
-	# Register user first
-	client.post(
-		"/api/auth/register",
-		headers={"X-TENANT": str(tenant_id)},
-		json={"email": "login@tenant.com", "password": "LoginPass123!"},
-	)
+    # Register user first
+    test_client.post(
+        "/api/auth/register",
+        headers={"X-TENANT": str(tenant_id)},
+        json={"email": "login@tenant.com", "password": "LoginPass123!"},
+    )
 
-	response = client.post(
-		"/api/auth/login",
-		headers={"X-TENANT": str(tenant_id)},
-		data={"email": "login@tenant.com", "password": "LoginPass123!"},
-	)
-	assert response.status_code == 200
-	assert "access_token" in response.json()
+    response = test_client.post(
+        "/api/auth/login",
+        headers={"X-TENANT": str(tenant_id)},
+        data={"email": "login@tenant.com", "password": "LoginPass123!"},
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()
