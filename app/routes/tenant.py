@@ -11,7 +11,12 @@ from app.models.tenant import (
     TenantUserIn_Pydantic,
 )
 from app.services.auth import get_current_tenant_user
-from app.utils.auth import create_access_token, get_password_hash, pwd_context, authenticate_user
+from app.utils.auth import (
+    create_access_token,
+    get_password_hash,
+    pwd_context,
+    authenticate_user,
+)
 
 router = APIRouter(prefix="/api", tags=["Tenant Operations (with X-TENANT header)"])
 

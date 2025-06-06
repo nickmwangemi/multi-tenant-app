@@ -1,4 +1,6 @@
 import pytest
+from fastapi import HTTPException
+from passlib.context import CryptContext
 
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
@@ -53,24 +55,33 @@ class TestAuthenticateUser:
         assert user is None
 
     async def test_authenticate_tenant_user_success(self, test_tenant_user):
-        user = await authenticate_user("tenant@example.com", "testpassword", is_core=False)
+        user = await authenticate_user(
+            "tenant@example.com", "testpassword", is_core=False
+        )
         assert user is not None
         assert user.email == "tenant@example.com"
         assert isinstance(user, TenantUser)
 
     async def test_authenticate_tenant_user_wrong_password(self, test_tenant_user):
-        user = await authenticate_user("tenant@example.com", "wrongpassword", is_core=False)
+        user = await authenticate_user(
+            "tenant@example.com", "wrongpassword", is_core=False
+        )
         assert user is None
 
     async def test_authenticate_tenant_user_not_found(self):
-        from app.models.tenant import TenantUser
-        user = await authenticate_user("nonexistent@example.com", "testpassword", is_core=False)
+        user = await authenticate_user(
+            "nonexistent@example.com", "testpassword", is_core=False
+        )
         assert user is None
 
 
 class TestPasswordHashing:
-    def test_password_hashing(self):  # No async mark
-        assert verify_password("test", get_password_hash("test"))
+    def test_password_hashing(self):
+        password = "testpassword"
+        hashed_password = get_password_hash(password)
+        assert verify_password(password, hashed_password)
+        assert not verify_password("wrongpassword", hashed_password)
+
 
 class TestJWTToken:
     def test_create_access_token(self):
@@ -80,6 +91,7 @@ class TestJWTToken:
 
     def test_create_access_token_with_expiry(self):
         from datetime import timedelta
+
         token = create_access_token({"sub": "123"}, expires_delta=timedelta(minutes=5))
         assert isinstance(token, str)
         assert len(token) > 0

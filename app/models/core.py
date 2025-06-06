@@ -1,11 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
+
 
 from pydantic import BaseModel, EmailStr, constr
 from tortoise import fields
 from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.models import Model
-
-from app.utils.auth import pwd_context
 
 
 class Token(BaseModel):
@@ -39,6 +38,8 @@ class CoreUser(Model):
     verification_token_created_at = fields.DatetimeField(null=True)
 
     def verify_password(self, plain_password: str) -> bool:
+        from app.utils.auth import pwd_context
+
         return pwd_context.verify(plain_password, self.password_hash)
 
     def __str__(self):

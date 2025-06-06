@@ -135,6 +135,7 @@ async def login_for_access_token(form_data: UserLogin):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 @router.post("/organizations")
 async def create_organization(name: str, user: CoreUser = Depends(get_current_user)):
     if not user.is_owner:
@@ -152,4 +153,3 @@ async def create_organization(name: str, user: CoreUser = Depends(get_current_us
         "tenant_db_name": tenant_db_name,
         "message": "Organization created successfully",
     }
-

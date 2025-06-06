@@ -9,6 +9,7 @@ from app.models.tenant import TenantUser
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -34,6 +35,7 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     except DoesNotExist as exc:
         raise credentials_exception from exc
 
+
 async def get_current_owner_user(current_user: CoreUser = Depends(get_current_user)):
     if not current_user.is_owner:
         raise HTTPException(
@@ -41,8 +43,6 @@ async def get_current_owner_user(current_user: CoreUser = Depends(get_current_us
             detail="Only organization owners can perform this action",
         )
     return current_user
-
-
 
 
 async def get_current_tenant_user(token: str = Depends(oauth2_scheme)):
@@ -54,9 +54,7 @@ async def get_current_tenant_user(token: str = Depends(oauth2_scheme)):
 
     try:
         payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm]
+            token, settings.secret_key, algorithms=[settings.algorithm]
         )
         email: str = payload.get("sub")
         if email is None:

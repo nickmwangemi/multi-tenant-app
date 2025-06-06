@@ -2,6 +2,7 @@ from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.db.routing import current_tenant
 
+
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         x_tenant = request.headers.get("X-TENANT")
@@ -18,6 +19,6 @@ class TenantMiddleware(BaseHTTPMiddleware):
             except ValueError as e:
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid tenant ID format. Must be an integer."
+                    detail="Invalid tenant ID format. Must be an integer.",
                 ) from e
         return await call_next(request)

@@ -24,10 +24,6 @@ class TenantUser(Model):
     def __str__(self):
         return self.email
 
-    class Meta:
-        table = "tenant_users"
-        default_connection = "tenant"
-
 
 TenantUser_Pydantic = pydantic_model_creator(
     TenantUser, name="TenantUser", exclude=("password_hash",)
