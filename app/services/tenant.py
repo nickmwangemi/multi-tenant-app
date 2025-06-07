@@ -60,6 +60,7 @@ async def sync_owner_to_tenant(organization_id: int, owner_id: int):
     core_db = Tortoise.get_connection("default")
 
     try:
+        # Correctly await the coroutine returned by CoreUser.get
         owner = await CoreUser.get(id=owner_id).using_db(core_db)
     except DoesNotExist as e:
         raise HTTPException(
@@ -69,6 +70,10 @@ async def sync_owner_to_tenant(organization_id: int, owner_id: int):
     tenant_db_name = f"tenant_{organization_id}"
     tenant_db = await get_tenant_connection(tenant_db_name)
 
+    # Correctly await the coroutine returned by TenantUser.create
     await TenantUser.create(
-        email=owner.email, password_hash=owner.password_hash, is_active=True
+        email=owner.email,
+        password_hash=owner.password_hash,
+        is_active=True
     ).using_db(tenant_db)
+

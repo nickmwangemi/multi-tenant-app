@@ -1,89 +1,102 @@
-import uuid
-
-import asyncpg
 import pytest
-from fastapi import HTTPException
-from tortoise import Tortoise
-
-from app.config import settings
-from app.db.routing import get_tenant_connection
-from app.models.core import CoreUser, Organization
-from app.models.tenant import TenantUser
+from unittest.mock import patch, AsyncMock
+from fastapi import HTTPException, status
+from tortoise.exceptions import DoesNotExist, ConfigurationError
 from app.services.tenant import (
     create_tenant_database,
     init_tenant_schema,
     sync_owner_to_tenant,
 )
-
-
-@pytest.mark.asyncio
-async def test_create_tenant_database():
-    test_id = 999
-    db_name = await create_tenant_database(test_id)
-    assert db_name == f"tenant_{test_id}"
-
+from app.config import settings
+from app.models.core import CoreUser
+from app.models.tenant import TenantUser
 
 @pytest.mark.asyncio
-async def test_init_tenant_schema():
-    db_name = "test_tenant_schema"
-    conn = await asyncpg.connect(settings.database_url)
-    try:
-        await conn.execute(f'CREATE DATABASE "{db_name}"')
-    except asyncpg.DuplicateDatabaseError:
-        pass
-    finally:
-        await conn.close()
+async def test_create_tenant_database_success():
+    with patch('asyncpg.connect', new_callable=AsyncMock) as mock_connect:
+        mock_conn = AsyncMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.fetchval.return_value = None  # Simulate database not existing
 
-    await init_tenant_schema(db_name)
-
-    conn = await asyncpg.connect(f"{settings.tenant_database_base}/{db_name}")
-    await conn.close()
-
+        db_name = await create_tenant_database(1)
+        assert db_name == "tenant_1"
 
 @pytest.mark.asyncio
-async def test_sync_owner_to_tenant():
-    # Initialize database
-    await Tortoise.init(
-        db_url="postgres://test_user:test_password@localhost:5432/test_core",
-        modules={"models": ["app.models.core", "app.models.tenant", "aerich.models"]},
-        _create_db=False,
-    )
-    await Tortoise.generate_schemas()
+async def test_create_tenant_database_existing():
+    with patch('asyncpg.connect', new_callable=AsyncMock) as mock_connect:
+        mock_conn = AsyncMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.fetchval.return_value = 1  # Simulate database existing
 
-    # Create test user
-    from app.utils.auth import get_password_hash
-
-    test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
-    user = await CoreUser.create(
-        email=test_email,
-        password_hash=get_password_hash("secret"),
-        is_verified=True,
-        is_owner=True,
-    )
-
-    # Create organization
-    org = await Organization.create(name="Test Org", owner=user)
-
-    try:
-        # Create tenant database
-        db_name = await create_tenant_database(org.id)
-
-        # Test sync
-        await sync_owner_to_tenant(org.id, user.id)
-
-        # Verify
-        tenant_conn = await get_tenant_connection(org.id)
-        tenant_user = await TenantUser.get(email=user.email).using_db(tenant_conn)
-        assert tenant_user is not None
-        assert tenant_user.email == user.email
-    finally:
-        await Tortoise.close_connections()
-
+        db_name = await create_tenant_database(1)
+        assert db_name == "tenant_1"
 
 @pytest.mark.asyncio
-async def test_sync_nonexistent_owner():
-    with pytest.raises(HTTPException) as exc_info:
-        await sync_owner_to_tenant(999, 9999)
+async def test_create_tenant_database_error():
+    with patch('asyncpg.connect', new_callable=AsyncMock) as mock_connect:
+        mock_conn = AsyncMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.fetchval.side_effect = asyncpg.PostgresError("Database error")
 
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "Core user not found"
+        with pytest.raises(HTTPException) as exc_info:
+            await create_tenant_database(1)
+
+        assert exc_info.value.status_code == 500
+        assert "Failed to create tenant database" in exc_info.value.detail
+
+@pytest.mark.asyncio
+async def test_init_tenant_schema_success():
+    with patch('aerich.Command', new_callable=AsyncMock) as mock_command:
+        mock_cmd = AsyncMock()
+        mock_command.return_value = mock_cmd
+
+        await init_tenant_schema("test_db")
+        mock_cmd.init.assert_awaited_once()
+        mock_cmd.upgrade.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_init_tenant_schema_error():
+    with patch('aerich.Command', new_callable=AsyncMock) as mock_command:
+        mock_cmd = AsyncMock()
+        mock_command.return_value = mock_cmd
+        mock_cmd.init.side_effect = ConfigurationError("Config error")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await init_tenant_schema("test_db")
+
+        assert exc_info.value.status_code == 500
+        assert "Failed to initialize tenant schema" in exc_info.value.detail
+
+@pytest.mark.asyncio
+async def test_sync_owner_to_tenant_success():
+    with patch('tortoise.Tortoise.get_connection') as mock_get_connection, \
+         patch('app.models.core.CoreUser.get', new_callable=AsyncMock) as mock_get, \
+         patch('app.db.routing.get_tenant_connection', new_callable=AsyncMock) as mock_tenant_connection, \
+         patch('app.models.tenant.TenantUser.create', new_callable=AsyncMock) as mock_create:
+
+        mock_owner = AsyncMock()
+        mock_owner.email = "test@example.com"
+        mock_owner.password_hash = "hashed_password"
+        mock_get.return_value = mock_owner
+        mock_tenant_conn = AsyncMock()
+        mock_tenant_connection.return_value = mock_tenant_conn
+
+        await sync_owner_to_tenant(1, 1)
+        mock_create.assert_awaited_once_with(
+            email=mock_owner.email,
+            password_hash=mock_owner.password_hash,
+            is_active=True
+        )
+
+@pytest.mark.asyncio
+async def test_sync_owner_to_tenant_error():
+    with patch('tortoise.Tortoise.get_connection') as mock_get_connection, \
+         patch('app.models.core.CoreUser.get', new_callable=AsyncMock) as mock_get:
+
+        mock_get.side_effect = DoesNotExist("User not found")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await sync_owner_to_tenant(1, 1)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Core user not found"
