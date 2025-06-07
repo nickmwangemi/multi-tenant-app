@@ -4,19 +4,11 @@ from fastapi import APIRouter, Depends, Form, Header, HTTPException, status
 from tortoise.exceptions import IntegrityError
 
 from app.config import settings
-from app.models.tenant import (
-    TenantUser,
-    TenantUser_Pydantic,
-    TenantUserIn,
-    TenantUserIn_Pydantic,
-)
+from app.models.tenant import (TenantUser, TenantUser_Pydantic, TenantUserIn,
+                               TenantUserIn_Pydantic)
 from app.services.auth import get_current_tenant_user
-from app.utils.auth import (
-    authenticate_user,
-    create_access_token,
-    get_password_hash,
-    pwd_context,
-)
+from app.utils.auth import (authenticate_user, create_access_token,
+                            get_password_hash, pwd_context)
 
 router = APIRouter(prefix="/api", tags=["Tenant Operations (with X-TENANT header)"])
 

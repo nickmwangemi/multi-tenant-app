@@ -5,15 +5,8 @@ from passlib.context import CryptContext
 from tortoise.exceptions import IntegrityError
 
 from app.config import settings
-from app.models.core import (
-    AuthResponse,
-    CoreUser,
-    CoreUser_Pydantic,
-    Organization,
-    Token,
-    UserLogin,
-    UserRegisterIn,
-)
+from app.models.core import (AuthResponse, CoreUser, CoreUser_Pydantic,
+                             Organization, Token, UserLogin, UserRegisterIn)
 from app.services.auth import get_current_user
 from app.services.tenant import create_tenant_database, sync_owner_to_tenant
 from app.utils.auth import authenticate_user, create_access_token

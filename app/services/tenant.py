@@ -1,8 +1,8 @@
 import asyncpg
 from aerich import Command
-from fastapi.exceptions import HTTPException
+from fastapi import HTTPException, status
 from tortoise import Tortoise
-from tortoise.exceptions import ConfigurationError, DoesNotExist, IntegrityError
+from tortoise.exceptions import ConfigurationError, DoesNotExist
 
 from app.config import settings
 from app.db.routing import get_tenant_connection
@@ -54,10 +54,6 @@ async def init_tenant_schema(db_name: str):
         raise HTTPException(
             status_code=500, detail=f"Failed to initialize tenant schema: {str(e)}"
         ) from e
-
-
-from fastapi import HTTPException, status
-from tortoise.exceptions import DoesNotExist
 
 
 async def sync_owner_to_tenant(organization_id: int, owner_id: int):

@@ -86,6 +86,7 @@ async def core_user():
     await user.delete()
     await Tortoise.close_connections()
 
+
 @pytest.fixture
 async def unverified_core_user():
     # Initialize database first
