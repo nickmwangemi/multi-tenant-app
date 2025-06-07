@@ -76,7 +76,7 @@ async def core_user():
     )
     await Tortoise.generate_schemas()
 
-    from app.utils.password import get_password_hash
+    from app.utils.auth import get_password_hash
 
     test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = await CoreUser.create(
@@ -96,7 +96,7 @@ async def unverified_core_user():
     )
     await Tortoise.generate_schemas()
 
-    from app.utils.password import get_password_hash
+    from app.utils.auth import get_password_hash
 
     test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = await CoreUser.create(

@@ -48,7 +48,7 @@ async def test_sync_owner_to_tenant():
     await Tortoise.generate_schemas()
 
     # Create test user
-    from app.utils.password import get_password_hash
+    from app.utils.auth import get_password_hash
 
     test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = await CoreUser.create(

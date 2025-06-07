@@ -2,10 +2,12 @@ import uuid
 import pytest
 from datetime import timedelta
 from jose import jwt
+from passlib.exc import UnknownHashError
+
 from app.config import settings
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
-from app.utils.auth import authenticate_user, create_access_token, get_password_hash, utc_now, verify_password
+from app.utils.auth import create_access_token, get_password_hash, utc_now, verify_password, authenticate_user
 
 
 @pytest.mark.asyncio
@@ -100,6 +102,7 @@ def test_utc_now():
 
 
 
+
 def test_verify_password():
     # Create a hashed password from a known plain text password
     plain_password = "secret"
@@ -114,4 +117,5 @@ def test_verify_password():
 def test_verify_password_with_invalid_hash():
     # Test with an invalid hash to ensure it handles unexpected input gracefully
     invalid_hash = "thisisnotavalidhash"
-    assert verify_password("anything", invalid_hash) is False
+    with pytest.raises(UnknownHashError):
+        verify_password("anything", invalid_hash)
