@@ -1,13 +1,12 @@
 import uuid
 import pytest
 from fastapi import status
+from tortoise import Tortoise
 
 @pytest.mark.asyncio
 async def test_full_flow(test_client):
-    # Generate unique test data
     unique_email = f"test_{uuid.uuid4().hex[:8]}@integration.com"
 
-    # 1. Register core user
     register_res = await test_client.post(
         "/api/auth/register",
         json={
@@ -19,16 +18,13 @@ async def test_full_flow(test_client):
     assert register_res.status_code == status.HTTP_201_CREATED
     register_data = register_res.json()
 
-    # Get token from response
     token = register_data["access_token"]
 
-    # 2. Verify email
     verify_res = await test_client.get(
         f"/api/auth/verify?token={register_data['verification_token']}"
     )
     assert verify_res.status_code == status.HTTP_200_OK
 
-    # 3. Login
     login_res = await test_client.post(
         "/api/auth/login",
         data={"username": unique_email, "password": "ValidPass123!"},
@@ -36,21 +32,18 @@ async def test_full_flow(test_client):
     )
     assert login_res.status_code == status.HTTP_200_OK
 
-    # 4. Create organization
     org_res = await test_client.post(
         "/api/organizations",
         headers={"Authorization": f"Bearer {token}"},
         json={"name": "Integration Test Org"}
     )
 
-    # Debug output
     if org_res.status_code != status.HTTP_200_OK:
         print(f"Organization creation failed: {org_res.json()}")
 
     assert org_res.status_code == status.HTTP_200_OK
     org_data = org_res.json()
 
-    # 5. Register tenant user
     tenant_email = org_data["tenant_email"]
     tenant_res = await test_client.post(
         "/api/auth/register",
@@ -65,8 +58,6 @@ async def test_full_flow(test_client):
         print(f"Tenant registration failed: {tenant_res.json()}")
     assert tenant_res.status_code == status.HTTP_201_CREATED
 
-    # 6. Verify tenant user exists
-    from tortoise import Tortoise
     await Tortoise.init({
         "connections": {
             "tenant": {

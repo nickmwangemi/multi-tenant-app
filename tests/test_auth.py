@@ -1,19 +1,14 @@
 import uuid
-
 import pytest
 from datetime import timedelta
 from jose import jwt
-
 from app.config import settings
 from app.models.tenant import TenantUser
 from app.utils.auth import authenticate_user, create_access_token, get_password_hash
-
 from tortoise import Tortoise
-
 
 @pytest.mark.asyncio
 async def test_authenticate_core_user_success():
-    # Create a unique test user
     from app.models.core import CoreUser
     from app.utils.password import get_password_hash
 
@@ -25,17 +20,15 @@ async def test_authenticate_core_user_success():
     )
 
     try:
-        # Test authentication
         user = await authenticate_user(test_email, "secret")
         assert user is not None
         assert user.email == test_email
     finally:
-        # Clean up
         await test_user.delete()
 
 @pytest.mark.asyncio
 async def test_authenticate_core_user_wrong_password(core_user):
-    user = await authenticate_user("test@example.com", "wrongpassword")
+    user = await authenticate_user(core_user.email, "wrongpassword")
     assert user is None
 
 @pytest.mark.asyncio
@@ -43,35 +36,11 @@ async def test_authenticate_core_user_not_found():
     user = await authenticate_user("nonexistent@example.com", "secret")
     assert user is None
 
-
 @pytest.mark.asyncio
 async def test_authenticate_core_user_success(core_user):
-    from app.utils.auth import authenticate_user
-
-    # Test authentication
     user = await authenticate_user(core_user.email, "secret")
     assert user is not None
     assert user.email == core_user.email
-
-
-@pytest.mark.asyncio
-async def test_authenticate_tenant_user_inactive(tenant_user):
-    # Ensure user is initially active
-    assert tenant_user.is_active is True
-
-    # Deactivate user
-    tenant_user.is_active = False
-    await tenant_user.save()
-
-    # Verify the change was saved
-    refreshed_user = await TenantUser.get(id=tenant_user.id)
-    assert refreshed_user.is_active is False
-
-    # Test authentication
-    user = await authenticate_user(tenant_user.email, "secret", is_core=False)
-
-    # Should return None for inactive users
-    assert user is None, "Inactive user should not authenticate"
 
 def test_create_access_token():
     token = create_access_token({"sub": "123"})
@@ -85,8 +54,7 @@ def test_token_expiry():
         jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
 
 @pytest.fixture
-async def tenant_user(setup_tenant):
-    tenant_id = await setup_tenant
+async def tenant_user(init_tenant_db):
     user = await TenantUser.create(
         email="tenant@example.com",
         password_hash=get_password_hash("secret"),
@@ -100,3 +68,11 @@ async def test_authenticate_tenant_user_success(tenant_user):
     user = await authenticate_user(tenant_user.email, "secret", is_core=False)
     assert user is not None
     assert user.email == tenant_user.email
+
+@pytest.mark.asyncio
+async def test_authenticate_tenant_user_inactive(tenant_user):
+    tenant_user.is_active = False
+    await tenant_user.save()
+
+    user = await authenticate_user(tenant_user.email, "secret", is_core=False)
+    assert user is None
