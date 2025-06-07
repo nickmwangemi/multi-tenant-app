@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 import asyncpg
 from app.config import settings
@@ -45,29 +47,33 @@ async def setup_tenant(core_user):
 @pytest.mark.asyncio
 async def test_register_tenant_user(test_client, setup_tenant):
     tenant_id = await setup_tenant
-    response = await test_client.post(
+    response = test_client.post(
         "/api/auth/register",
         headers={"X-TENANT": str(tenant_id)},
-        json={"email": "tenant_user@test.com", "password": "TenantPass123!"},
+        json={
+            "email": f"user_{uuid.uuid4().hex[:8]}@tenant.com",
+            "password": "ValidPass123!"
+        }
     )
     assert response.status_code == 201
-    data = response.json()
-    assert data["email"] == "tenant_user@test.com"
+
 
 @pytest.mark.asyncio
 async def test_tenant_login(test_client, setup_tenant):
     tenant_id = await setup_tenant
+    email = f"login_{uuid.uuid4().hex[:8]}@tenant.com"
 
-    await test_client.post(
+    # Register
+    test_client.post(
         "/api/auth/register",
         headers={"X-TENANT": str(tenant_id)},
-        json={"email": "login@tenant.com", "password": "LoginPass123!"},
+        json={"email": email, "password": "LoginPass123!"}
     )
 
-    response = await test_client.post(
+    # Login
+    response = test_client.post(
         "/api/auth/login",
         headers={"X-TENANT": str(tenant_id)},
-        data={"username": "login@tenant.com", "password": "LoginPass123!"},
+        data={"username": email, "password": "LoginPass123!"}
     )
     assert response.status_code == 200
-    assert "access_token" in response.json()

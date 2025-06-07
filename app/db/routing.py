@@ -36,16 +36,10 @@ async def get_tenant_connection(tenant_id: int):
 
 
 class TenantRouter:
-	"""
-	Database router that directs queries to the appropriate tenant database
-	based on the current tenant context.
-	"""
+    async def db_for_read(self, model):
+        tenant_id = current_tenant.get()
+        return f"tenant_{tenant_id}" if tenant_id else "default"
 
-	async def db_for_read(self, model):
-		tenant_id = current_tenant.get()
-		return await get_tenant_connection(tenant_id) if tenant_id else "default"
-
-	async def db_for_write(self, model):
-		tenant_id = current_tenant.get()
-		return await get_tenant_connection(tenant_id) if tenant_id else "default"
-
+    async def db_for_write(self, model):
+        tenant_id = current_tenant.get()
+        return f"tenant_{tenant_id}" if tenant_id else "default"

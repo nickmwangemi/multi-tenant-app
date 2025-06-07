@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.middleware.tenant_context import TenantMiddleware
+from fastapi.exceptions import HTTPException
 
 app = FastAPI()
 app.add_middleware(TenantMiddleware)
@@ -31,7 +32,9 @@ def test_tenant_middleware(client, header, expected):
     assert response.status_code == 200
     assert response.json() == expected
 
+# tests/test_middleware.py
 def test_invalid_tenant_id(client):
-    response = client.get("/", headers={"X-TENANT": "invalid"})
-    assert response.status_code == 400
-    assert "Invalid tenant ID format" in response.json()["detail"]
+    with pytest.raises(HTTPException) as exc_info:
+        client.get("/", headers={"X-TENANT": "invalid"})
+    assert exc_info.value.status_code == 400
+    assert "Invalid tenant ID format" in exc_info.value.detail

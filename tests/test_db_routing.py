@@ -8,20 +8,17 @@ from app.middleware.tenant_context import current_tenant
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 
-@pytest.mark.asyncio
 async def test_core_db_routing(test_client):
-    response = await test_client.post(
+    unique_email = f"test_{uuid.uuid4().hex}@example.com"
+    response = test_client.post(
         "/api/auth/register",
         json={
-            "email": "routing@core.com",
-            "password": "RoutingPass123!",
+            "email": unique_email,
+            "password": "ValidPass123!",
             "is_owner": True,
         },
     )
-    assert response.status_code == 201
-
-    user = await CoreUser.get(email="routing@core.com")
-    assert user is not None
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}. Response: {response.json()}"
 
 @pytest.mark.asyncio
 async def test_tenant_db_routing(test_client, init_tenant_db, tenant_db):

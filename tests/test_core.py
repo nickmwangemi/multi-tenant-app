@@ -5,7 +5,7 @@ import uuid
 async def test_register_user(test_client):
     unique_email = f"test_{uuid.uuid4().hex}@example.com"
 
-    response = await test_client.post(
+    response = test_client.post(
         "/api/auth/register",
         json={
             "email": unique_email,

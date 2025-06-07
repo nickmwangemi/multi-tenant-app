@@ -11,57 +11,48 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="session")
 def event_loop():
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
 
-
 @pytest.fixture(scope="session", autouse=True)
 async def initialize_db():
-    # Use admin connection
     admin_conn = await asyncpg.connect(
         "postgres://postgres:postgres@localhost:5432/postgres"
     )
 
     try:
-        # Create test core database if not exists
-        await admin_conn.execute("""
-            SELECT 'CREATE DATABASE test_core OWNER test_user'
-            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'test_core')
-        """)
+        # Create databases if they don't exist
+        for db in ["test_core", "test_tenant_1", "test_tenant_2"]:
+            exists = await admin_conn.fetchval(
+                "SELECT 1 FROM pg_database WHERE datname = $1", db
+            )
+            if not exists:
+                await admin_conn.execute(f'CREATE DATABASE "{db}" OWNER test_user')
 
-        # Create test tenant databases if not exist
-        for i in range(1, 3):
-            db_name = f"test_tenant_{i}"
-            await admin_conn.execute(f"""
-                SELECT 'CREATE DATABASE "{db_name}" OWNER test_user'
-                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{db_name}')
-            """)
+        # Initialize core schema
+        await Tortoise.init(
+            db_url="postgres://test_user:test_password@localhost:5432/test_core",
+            modules={"models": ["app.models.core", "aerich.models"]},
+            _create_db=False
+        )
+        await Tortoise.generate_schemas()
+
+        yield
+
+        # Cleanup
+        await Tortoise.close_connections()
     finally:
         await admin_conn.close()
-
-    # Initialize core database
-    await Tortoise.init(
-        db_url="postgres://test_user:test_password@localhost:5432/test_core",
-        modules={"models": ["app.models.core", "app.models.tenant", "aerich.models"]},
-        _create_db=False
-    )
-    await Tortoise.generate_schemas()
-
-    yield
-
-    # Cleanup
-    await Tortoise.close_connections()
-
 
 
 @pytest.fixture
 async def test_client():
     from app.main import app
 
-    # Initialize Tortoise
+    # Reinitialize connections
     await Tortoise.init(
         db_url="postgres://test_user:test_password@localhost:5432/test_core",
         modules={"models": ["app.models.core", "app.models.tenant", "aerich.models"]},
@@ -71,12 +62,18 @@ async def test_client():
     with TestClient(app) as client:
         yield client
 
-    await Tortoise.close_connections()
-
 
 
 @pytest.fixture
 async def core_user():
+    # Initialize database first
+    await Tortoise.init(
+        db_url="postgres://test_user:test_password@localhost:5432/test_core",
+        modules={"models": ["app.models.core", "aerich.models"]},
+        _create_db=False
+    )
+    await Tortoise.generate_schemas()
+
     from app.utils.password import get_password_hash
     test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = await CoreUser.create(
@@ -86,6 +83,7 @@ async def core_user():
     )
     yield user
     await user.delete()
+    await Tortoise.close_connections()
 
 
 @pytest.fixture
@@ -103,3 +101,12 @@ async def init_tenant_db(tenant_db):
     await Tortoise.generate_schemas()
     yield
     await Tortoise.close_connections()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_db():
+    """Clean up connections after each test"""
+    yield
+    await Tortoise.close_connections()
+
+

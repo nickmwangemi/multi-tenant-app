@@ -1,6 +1,12 @@
+import uuid
+
 import pytest
 import asyncpg
 from fastapi import HTTPException
+
+from app.db.routing import get_tenant_connection
+from app.models.core import Organization, CoreUser
+from app.models.tenant import TenantUser
 from app.services.tenant import (
     create_tenant_database,
     init_tenant_schema,
@@ -8,17 +14,13 @@ from app.services.tenant import (
 )
 from app.config import settings
 
+from tortoise import Tortoise
+
 @pytest.mark.asyncio
 async def test_create_tenant_database():
-    admin_conn = await asyncpg.connect(
-        "postgres://postgres:postgres@localhost:5432/postgres"
-    )
-    try:
-        await admin_conn.execute('GRANT CREATE ON DATABASE postgres TO test_user')
-        db_name = await create_tenant_database(999)
-        assert db_name == "tenant_999"
-    finally:
-        await admin_conn.close()
+    test_id = 999
+    db_name = await create_tenant_database(test_id)
+    assert db_name == f"tenant_{test_id}"
 
 @pytest.mark.asyncio
 async def test_init_tenant_schema():
@@ -36,52 +38,44 @@ async def test_init_tenant_schema():
     conn = await asyncpg.connect(f"{settings.tenant_database_base}/{db_name}")
     await conn.close()
 
+
 @pytest.mark.asyncio
-async def test_sync_owner_to_tenant(core_user):
-    admin_conn = await asyncpg.connect(
-        "postgres://postgres:postgres@localhost:5432/postgres"
+async def test_sync_owner_to_tenant():
+    # Initialize database
+    await Tortoise.init(
+        db_url="postgres://test_user:test_password@localhost:5432/test_core",
+        modules={"models": ["app.models.core", "app.models.tenant", "aerich.models"]},
+        _create_db=False
     )
+    await Tortoise.generate_schemas()
+
+    # Create test user
+    from app.utils.password import get_password_hash
+    test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+    user = await CoreUser.create(
+        email=test_email,
+        password_hash=get_password_hash("secret"),
+        is_verified=True,
+        is_owner=True
+    )
+
+    # Create organization
+    org = await Organization.create(name="Test Org", owner=user)
+
     try:
-        org_id = 999
-        db_name = f"tenant_{org_id}"
+        # Create tenant database
+        db_name = await create_tenant_database(org.id)
 
-        await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
-        await admin_conn.execute(f'CREATE DATABASE "{db_name}" OWNER test_user')
+        # Test sync
+        await sync_owner_to_tenant(org.id, user.id)
 
-        tenant_conn = await asyncpg.connect(
-            f"postgres://test_user:test_password@localhost:5432/{db_name}"
-        )
-        try:
-            await tenant_conn.execute('''
-                CREATE TABLE IF NOT EXISTS coreuser (
-                    id SERIAL PRIMARY KEY,
-                    email VARCHAR(255) UNIQUE NOT NULL
-                )
-            ''')
-
-            await tenant_conn.execute('''
-                CREATE TABLE IF NOT EXISTS tenantuser (
-                    id SERIAL PRIMARY KEY,
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(128) NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    is_active BOOLEAN DEFAULT TRUE
-                )
-            ''')
-
-            await admin_conn.execute('GRANT SELECT ON TABLE coreuser TO test_user')
-
-            await sync_owner_to_tenant(org_id, core_user.id)
-
-            user = await tenant_conn.fetchrow(
-                'SELECT * FROM tenantuser WHERE email = $1', core_user.email
-            )
-            assert user is not None
-        finally:
-            await tenant_conn.close()
+        # Verify
+        tenant_conn = await get_tenant_connection(org.id)
+        tenant_user = await TenantUser.get(email=user.email).using_db(tenant_conn)
+        assert tenant_user is not None
+        assert tenant_user.email == user.email
     finally:
-        await admin_conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
-        await admin_conn.close()
+        await Tortoise.close_connections()
 
 @pytest.mark.asyncio
 async def test_sync_nonexistent_owner():
