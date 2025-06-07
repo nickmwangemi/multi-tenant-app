@@ -35,5 +35,6 @@ def test_tenant_middleware(client, header, expected):
 
 def test_invalid_tenant_id(client):
     response = client.get("/", headers={"X-TENANT": "invalid"})
+    print(response.status_code, response.json())  # Add this for debugging
     assert response.status_code == 400
     assert "Invalid tenant ID format" in response.json()["detail"]

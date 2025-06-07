@@ -4,10 +4,13 @@ import pytest
 from app.models.core import CoreUser, Organization
 
 
+import uuid
+
 @pytest.mark.asyncio
 async def test_core_user_verification():
-    user = await CoreUser.create(
-        email="test@example.com",
+    email = f"{uuid.uuid4()}@example.com"
+    user = await CoreUser.create_user(
+        email=email,
         password_hash="hash",
         verification_token="token"
     )
@@ -15,6 +18,7 @@ async def test_core_user_verification():
     user.is_verified = True
     await user.save()
     assert user.is_verified
+
 
 @pytest.mark.asyncio
 async def test_organization_creation(core_user):

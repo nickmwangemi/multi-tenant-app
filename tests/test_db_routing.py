@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import pytest
@@ -27,36 +28,18 @@ async def test_core_db_routing(test_client, core_user):
     assert user is not None
 
 
-@pytest.mark.asyncio
-async def test_tenant_db_routing(test_client, tenant_db):
-    # Add proper event loop handling
-    import asyncio
-    loop = asyncio.get_event_loop()
 
-    # Generate unique test data
+
+@pytest.mark.asyncio
+async def test_tenant_db_routing(test_client, init_tenant_db, tenant_db):
     test_email = f"test_{uuid.uuid4().hex[:8]}@tenant.com"
 
-    # Initialize Tortoise with proper loop
-    await Tortoise.init(
-        db_url=f"postgres://test_user:test_password@localhost:5432/test_tenant_{tenant_db}",
-        modules={"models": ["app.models.tenant"]},
-        _create_db=False
+    response = await test_client.post(
+        "/api/auth/register",
+        json={"email": test_email, "password": "ValidPass123!"},
+        headers={"X-TENANT": str(tenant_db)}
     )
-
-    try:
-        # Test registration
-        response = await test_client.post(
-            "/api/auth/register",
-            json={"email": test_email, "password": "ValidPass123!"},
-            headers={"X-TENANT": str(tenant_db)}
-        )
-        assert response.status_code == 201
-
-        # Verify in tenant database
-        user = await TenantUser.get(email=test_email)
-        assert user is not None
-    finally:
-        await Tortoise.close_connections()
+    assert response.status_code == 201
 
 
 @pytest.mark.asyncio

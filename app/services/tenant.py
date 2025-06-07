@@ -2,6 +2,7 @@ import asyncpg
 from tortoise import Tortoise
 from tortoise.exceptions import ConfigurationError, IntegrityError, DoesNotExist
 from app.config import settings
+from app.db.routing import get_tenant_connection
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
 from aerich import Command
@@ -54,20 +55,25 @@ async def init_tenant_schema(db_name: str):
         ) from e
 
 
+from fastapi import HTTPException, status
+from tortoise.exceptions import DoesNotExist
+
 async def sync_owner_to_tenant(organization_id: int, owner_id: int):
-    # Get core connection
     core_db = Tortoise.get_connection("default")
 
-    # Get owner from core database
-    owner = await CoreUser.get(id=owner_id).using_db(core_db)
+    try:
+        owner = await CoreUser.get(id=owner_id).using_db(core_db)
+    except DoesNotExist as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Core user not found"
+        ) from e
 
-    # Get tenant connection
     tenant_db_name = f"tenant_{organization_id}"
     tenant_db = await get_tenant_connection(tenant_db_name)
 
-    # Create in tenant database
     await TenantUser.create(
         email=owner.email,
         password_hash=owner.password_hash,
         is_active=True
     ).using_db(tenant_db)
+
