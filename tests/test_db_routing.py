@@ -1,14 +1,10 @@
-import asyncio
 import uuid
 
 import pytest
 from tortoise import Tortoise
 
-from app.config import settings
 from app.db.routing import TenantRouter, get_tenant_connection
 from app.middleware.tenant_context import current_tenant
-from app.models.core import CoreUser
-from app.models.tenant import TenantUser
 
 
 async def test_core_db_routing(test_client):

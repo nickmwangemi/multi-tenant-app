@@ -4,9 +4,7 @@ import asyncpg
 import pytest
 from tortoise import Tortoise
 
-from app.config import settings
 from app.models.core import Organization
-from app.services.tenant import create_tenant_database
 
 
 @pytest.fixture

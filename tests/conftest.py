@@ -86,6 +86,26 @@ async def core_user():
     await user.delete()
     await Tortoise.close_connections()
 
+@pytest.fixture
+async def unverified_core_user():
+    # Initialize database first
+    await Tortoise.init(
+        db_url="postgres://test_user:test_password@localhost:5432/test_core",
+        modules={"models": ["app.models.core", "aerich.models"]},
+        _create_db=False,
+    )
+    await Tortoise.generate_schemas()
+
+    from app.utils.password import get_password_hash
+
+    test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+    user = await CoreUser.create(
+        email=test_email, password_hash=get_password_hash("secret"), is_verified=False
+    )
+    yield user
+    await user.delete()
+    await Tortoise.close_connections()
+
 
 @pytest.fixture
 async def tenant_db():

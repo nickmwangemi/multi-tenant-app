@@ -1,11 +1,8 @@
 import uuid
 
-import pytest
 from fastapi import status
-from tortoise import Tortoise
 
 
-# tests/test_integration.py
 async def test_full_flow(test_client):
     unique_email = f"test_{uuid.uuid4().hex[:8]}@integration.com"
 

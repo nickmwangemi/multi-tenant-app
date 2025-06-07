@@ -9,11 +9,8 @@ from app.config import settings
 from app.db.routing import get_tenant_connection
 from app.models.core import CoreUser, Organization
 from app.models.tenant import TenantUser
-from app.services.tenant import (
-    create_tenant_database,
-    init_tenant_schema,
-    sync_owner_to_tenant,
-)
+from app.services.tenant import (create_tenant_database, init_tenant_schema,
+                                 sync_owner_to_tenant)
 
 
 @pytest.mark.asyncio

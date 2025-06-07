@@ -2,7 +2,6 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.testclient import TestClient
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.middleware.tenant_context import TenantMiddleware
 
