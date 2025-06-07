@@ -1,17 +1,21 @@
+import uuid
 from contextvars import ContextVar
 from typing import Optional
-import uuid
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import HTTPException, Request
 
+from fastapi import HTTPException, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Context variable to store the current tenant ID
 current_tenant: ContextVar[Optional[int]] = ContextVar("current_tenant", default=None)
-current_tenant_token: ContextVar[Optional[uuid.UUID]] = ContextVar("current_tenant_token", default=None)
+current_tenant_token: ContextVar[Optional[uuid.UUID]] = ContextVar(
+    "current_tenant_token", default=None
+)
+
 
 def get_current_tenant() -> Optional[int]:
     """Get the current tenant ID from context"""
     return current_tenant.get()
+
 
 def set_current_tenant(tenant_id: int) -> uuid.UUID:
     """Set the current tenant ID in context and return the reset token"""
@@ -19,14 +23,17 @@ def set_current_tenant(tenant_id: int) -> uuid.UUID:
     current_tenant_token.set(token)
     return token
 
+
 def reset_current_tenant(token: uuid.UUID) -> None:
     """Reset the current tenant context to its previous state"""
     if current_tenant_token.get() == token:
         current_tenant.reset(token)
         current_tenant_token.set(None)
 
+
 class TenantContext:
     """Context manager for tenant context"""
+
     def __init__(self, tenant_id: int):
         self.tenant_id = tenant_id
         self.token = None
@@ -38,7 +45,6 @@ class TenantContext:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.token:
             reset_current_tenant(self.token)
-
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

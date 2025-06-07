@@ -1,5 +1,6 @@
 from tortoise import Tortoise, connections
 from tortoise.exceptions import ConfigurationError
+
 from app.config import settings
 from app.middleware.tenant_context import current_tenant
 
@@ -27,7 +28,9 @@ async def get_tenant_connection(tenant_id: int):
         )
         connection = connections.get(db_name)
         if connection is None:
-            raise ConfigurationError(f"Failed to get connection for tenant database {db_name}")
+            raise ConfigurationError(
+                f"Failed to get connection for tenant database {db_name}"
+            )
         return connection
     except Exception as e:
         raise ConfigurationError(

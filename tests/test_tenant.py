@@ -1,11 +1,13 @@
 import uuid
 
-import pytest
 import asyncpg
+import pytest
+from tortoise import Tortoise
+
 from app.config import settings
 from app.models.core import Organization
 from app.services.tenant import create_tenant_database
-from tortoise import Tortoise
+
 
 @pytest.fixture
 async def setup_tenant(core_user):
@@ -27,7 +29,7 @@ async def setup_tenant(core_user):
         await Tortoise.init(
             db_url=f"postgres://test_user:test_password@localhost:5432/{db_name}",
             modules={"models": ["app.models.tenant", "aerich.models"]},
-            _create_db=False
+            _create_db=False,
         )
         await Tortoise.generate_schemas()
 
@@ -44,6 +46,7 @@ async def setup_tenant(core_user):
         finally:
             await admin_conn.close()
 
+
 @pytest.mark.asyncio
 async def test_register_tenant_user(test_client, setup_tenant):
     tenant_id = await setup_tenant
@@ -52,8 +55,8 @@ async def test_register_tenant_user(test_client, setup_tenant):
         headers={"X-TENANT": str(tenant_id)},
         json={
             "email": f"user_{uuid.uuid4().hex[:8]}@tenant.com",
-            "password": "ValidPass123!"
-        }
+            "password": "ValidPass123!",
+        },
     )
     assert response.status_code == 201
 
@@ -67,13 +70,42 @@ async def test_tenant_login(test_client, setup_tenant):
     test_client.post(
         "/api/auth/register",
         headers={"X-TENANT": str(tenant_id)},
-        json={"email": email, "password": "LoginPass123!"}
+        json={"email": email, "password": "LoginPass123!"},
     )
 
     # Login
     response = test_client.post(
         "/api/auth/login",
         headers={"X-TENANT": str(tenant_id)},
-        data={"username": email, "password": "LoginPass123!"}
+        data={"username": email, "password": "LoginPass123!"},
     )
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_user_profile(test_client, setup_tenant):
+    tenant_id = await setup_tenant
+    email = f"user_{uuid.uuid4().hex[:8]}@tenant.com"
+
+    # Register user
+    reg_res = test_client.post(
+        "/api/auth/register",
+        headers={"X-TENANT": str(tenant_id)},
+        json={"email": email, "password": "ValidPass123!"},
+    )
+
+    # Login
+    login_res = test_client.post(
+        "/api/auth/login",
+        headers={"X-TENANT": str(tenant_id)},
+        data={"username": email, "password": "ValidPass123!"},
+    )
+    token = login_res.json()["access_token"]
+
+    # Update profile
+    update_res = test_client.put(
+        "/api/users/me",
+        headers={"X-TENANT": str(tenant_id), "Authorization": f"Bearer {token}"},
+        json={"email": f"updated_{email}"},
+    )
+    assert update_res.status_code == 200

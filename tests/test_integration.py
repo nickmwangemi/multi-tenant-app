@@ -1,4 +1,5 @@
 import uuid
+
 import pytest
 from fastapi import status
 from tortoise import Tortoise
@@ -11,11 +12,7 @@ async def test_full_flow(test_client):
     # Register
     register_res = test_client.post(
         "/api/auth/register",
-        json={
-            "email": unique_email,
-            "password": "ValidPass123!",
-            "is_owner": True
-        }
+        json={"email": unique_email, "password": "ValidPass123!", "is_owner": True},
     )
     assert register_res.status_code == status.HTTP_201_CREATED
     register_data = register_res.json()
@@ -29,11 +26,8 @@ async def test_full_flow(test_client):
     # Login (use form data format)
     login_res = test_client.post(
         "/api/auth/login",
-        data={
-            "username": unique_email,
-            "password": "ValidPass123!"
-        },
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
+        data={"username": unique_email, "password": "ValidPass123!"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert login_res.status_code == status.HTTP_200_OK
     token = login_res.json()["access_token"]
@@ -42,7 +36,7 @@ async def test_full_flow(test_client):
     org_res = test_client.post(
         "/api/organizations",
         headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Integration Test Org"}
+        json={"name": "Integration Test Org"},
     )
     assert org_res.status_code == status.HTTP_200_OK
     org_data = org_res.json()
@@ -52,9 +46,6 @@ async def test_full_flow(test_client):
     tenant_res = test_client.post(
         "/api/auth/register",
         headers={"X-TENANT": str(org_data["organization_id"])},
-        json={
-            "email": tenant_email,
-            "password": "TenantPass123!"
-        }
+        json={"email": tenant_email, "password": "TenantPass123!"},
     )
     assert tenant_res.status_code == status.HTTP_201_CREATED

@@ -1,12 +1,13 @@
 import asyncpg
+from aerich import Command
+from fastapi.exceptions import HTTPException
 from tortoise import Tortoise
-from tortoise.exceptions import ConfigurationError, IntegrityError, DoesNotExist
+from tortoise.exceptions import ConfigurationError, DoesNotExist, IntegrityError
+
 from app.config import settings
 from app.db.routing import get_tenant_connection
 from app.models.core import CoreUser
 from app.models.tenant import TenantUser
-from aerich import Command
-from fastapi.exceptions import HTTPException
 
 
 async def create_tenant_database(organization_id: int):
@@ -58,6 +59,7 @@ async def init_tenant_schema(db_name: str):
 from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 
+
 async def sync_owner_to_tenant(organization_id: int, owner_id: int):
     core_db = Tortoise.get_connection("default")
 
@@ -72,8 +74,5 @@ async def sync_owner_to_tenant(organization_id: int, owner_id: int):
     tenant_db = await get_tenant_connection(tenant_db_name)
 
     await TenantUser.create(
-        email=owner.email,
-        password_hash=owner.password_hash,
-        is_active=True
+        email=owner.email, password_hash=owner.password_hash, is_active=True
     ).using_db(tenant_db)
-

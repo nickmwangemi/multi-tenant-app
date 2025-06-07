@@ -12,10 +12,10 @@ from app.models.tenant import (
 )
 from app.services.auth import get_current_tenant_user
 from app.utils.auth import (
+    authenticate_user,
     create_access_token,
     get_password_hash,
     pwd_context,
-    authenticate_user,
 )
 
 router = APIRouter(prefix="/api", tags=["Tenant Operations (with X-TENANT header)"])

@@ -1,6 +1,5 @@
 from datetime import datetime
 
-
 from pydantic import BaseModel, EmailStr, constr
 from tortoise import fields
 from tortoise.contrib.pydantic import pydantic_model_creator

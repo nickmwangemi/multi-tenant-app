@@ -16,7 +16,7 @@ from app.models.core import (
 )
 from app.services.auth import get_current_user
 from app.services.tenant import create_tenant_database, sync_owner_to_tenant
-from app.utils.auth import create_access_token, authenticate_user
+from app.utils.auth import authenticate_user, create_access_token
 
 router = APIRouter(prefix="/api", tags=["Core Operations (no X-TENANT header)"])
 

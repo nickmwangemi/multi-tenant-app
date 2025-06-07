@@ -44,12 +44,14 @@ async def authenticate_user(email: str, password: str, is_core: bool = True):
     try:
         if is_core:
             from app.models.core import CoreUser
+
             user = await CoreUser.get(email=email)
             # For core users, check verification status
             if not user.is_verified:
                 return None
         else:
             from app.models.tenant import TenantUser
+
             user = await TenantUser.get(email=email)
             # For tenant users, check active status
             if not user.is_active:

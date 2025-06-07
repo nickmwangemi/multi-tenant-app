@@ -1,18 +1,21 @@
-import pytest
-import asyncpg
 import asyncio
 import contextlib
 import uuid
+
+import asyncpg
+import pytest
+from fastapi.testclient import TestClient
 from tortoise import Tortoise
+
 from app.config import settings
 from app.models.core import CoreUser
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
 
@@ -36,7 +39,7 @@ async def initialize_db():
         await Tortoise.init(
             db_url="postgres://test_user:test_password@localhost:5432/test_core",
             modules={"models": ["app.models.core", "aerich.models"]},
-            _create_db=False
+            _create_db=False,
         )
         await Tortoise.generate_schemas()
 
@@ -56,12 +59,11 @@ async def test_client():
     await Tortoise.init(
         db_url="postgres://test_user:test_password@localhost:5432/test_core",
         modules={"models": ["app.models.core", "app.models.tenant", "aerich.models"]},
-        _create_db=False
+        _create_db=False,
     )
 
     with TestClient(app) as client:
         yield client
-
 
 
 @pytest.fixture
@@ -70,16 +72,15 @@ async def core_user():
     await Tortoise.init(
         db_url="postgres://test_user:test_password@localhost:5432/test_core",
         modules={"models": ["app.models.core", "aerich.models"]},
-        _create_db=False
+        _create_db=False,
     )
     await Tortoise.generate_schemas()
 
     from app.utils.password import get_password_hash
+
     test_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     user = await CoreUser.create(
-        email=test_email,
-        password_hash=get_password_hash("secret"),
-        is_verified=True
+        email=test_email, password_hash=get_password_hash("secret"), is_verified=True
     )
     yield user
     await user.delete()
@@ -89,6 +90,7 @@ async def core_user():
 @pytest.fixture
 async def tenant_db():
     return 1  # Return first test tenant ID
+
 
 @pytest.fixture
 async def init_tenant_db(tenant_db):
@@ -108,5 +110,3 @@ async def cleanup_db():
     """Clean up connections after each test"""
     yield
     await Tortoise.close_connections()
-
-
